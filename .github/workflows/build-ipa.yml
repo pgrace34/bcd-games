@@ -2,6 +2,11 @@ name: Build Madeira IPA (unsigned)
 
 on:
   workflow_dispatch:
+  # BCD (2026-10-29): DanielTangnes/bcd-games builds its iphone-duo branch on push. The cloud session that works on that fork
+  # cannot reach the Actions API (no dispatch, no run status), so a push is how it starts a build and the Checks API is how it
+  # follows one. The owner's repository is not affected: it has no such branch.
+  push:
+    branches: [iphone-duo]
   # Paused while builds run on the owner's Mac (2026-10-13). To build on push
   # to main again, uncomment the three lines below.
   # push:
@@ -17,7 +22,8 @@ concurrency:
 jobs:
   build:
     # madeira-bcd: runs only in the owner's repository; a fork's run is skipped.
-    if: github.repository == 'thebcd69/madeira-bcd'
+    # BCD (2026-10-29): and in DanielTangnes/bcd-games, which publishes its unsigned IPA as a release (the step at the end).
+    if: github.repository == 'thebcd69/madeira-bcd' || github.repository == 'DanielTangnes/bcd-games'
     # BCD (2026-10-29): macos-26, for Xcode 27.1 and the iOS 27.1 SDK. An app built with an older SDK runs on iPhone Duo in a
     # compatibility size and never gets the whole inner display (Apple, "Prepare your app for iPhone Duo"); Xcode 27 needs
     # macOS 26. The SDK's version is checked after the toolchain step: a warning, not a failure, so a runner image behind
@@ -30,6 +36,10 @@ jobs:
       contents: write
       actions: read
     timeout-minutes: 360
+    # BCD (2026-10-29): "true" where the owner's private bucket is configured (its repository), "false" in a fork, which has
+    # none of the secrets. The OTA steps run only in the first case; the second publishes the unsigned IPA as a release.
+    env:
+      OTA_CONFIGURED: ${{ secrets.B2_KEY_ID != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +54,9 @@ jobs:
         run: |
           echo "-- installed Xcodes --"
           ls -d /Applications/Xcode*.app 2>/dev/null || echo "(none beyond the default)"
-          NEWEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          # BCD (2026-10-29): the newest stable one; a beta or release candidate only when nothing else is installed.
+          NEWEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | grep -viE 'beta|_rc|-rc' | sort -V | tail -1)
+          [ -n "$NEWEST" ] || NEWEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           if [ -n "$NEWEST" ]; then
             sudo xcode-select -s "$NEWEST/Contents/Developer"
             echo "::notice::selected $NEWEST"
@@ -4280,6 +4292,7 @@ jobs:
       # A signing/upload failure is caught by the private-bucket gate below.
       - name: Sign for OTA install (private bucket)
         id: ota
+        if: env.OTA_CONFIGURED == 'true'
         continue-on-error: true
         env:
           B2_KEY_ID: ${{ secrets.B2_KEY_ID }}
@@ -4302,10 +4315,44 @@ jobs:
       # private R2 bucket (the OTA step above). If that step did not succeed,
       # the build fails here instead of keeping the IPA somewhere public.
       - name: Check the IPA reached the private bucket
-        if: steps.ota.outcome != 'success'
+        if: env.OTA_CONFIGURED == 'true' && steps.ota.outcome != 'success'
         run: |
           echo "::error::OTA signing/upload did not succeed: this build's IPA was not kept anywhere (no GitHub artifact by design)"
           exit 1
+
+      # BCD (2026-10-29): a fork has neither the bucket nor the certificate, so it keeps the unsigned IPA the way the owner's
+      # releases do (BCD.ipa on a GitHub release, README's "Download the IPA"), under the owner's tag form v0.1.<build>. A
+      # second run of the same build replaces the file. The owner's repository never reaches this step.
+      - name: Publish the unsigned IPA as a GitHub release (a fork, without the owner's bucket)
+        if: env.OTA_CONFIGURED != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ steps.bn.outputs.n }}
+        run: |
+          TAG="v0.1.$N"
+          cp "build-out/Madeira-0.1.$N-unsigned.ipa" build-out/BCD.ipa
+          cat > release-notes.md <<NOTES
+          BCD 0.1.$N, built by GitHub Actions from \`$GITHUB_REF_NAME\` at ${GITHUB_SHA:0:12}. Unsigned: install it with
+          SideStore or AltStore, LiveContainer, or your own signing, as the README's Install section says.
+
+          Based on BCD 0.1.623 (thebcd69/bcd-games) with this branch's iPhone Duo changes:
+
+          - The display can change under the app without a restart (the Duo folds and unfolds; two apps share a display): the
+            Resolution choices, the touch controls' window and the game surface follow it, and a built-in touch layout is laid
+            out again for the new display.
+          - Settings › Graphics reads its resolution list as shown, not once at launch.
+          - The Steam, Epic and GOG sign-in sheet follows the window's width class, not the kind of device.
+          - Built on macOS 26 with the newest stable Xcode installed; the Duo's whole inner display needs the iOS 27.1 SDK
+            (the build's log says which SDK it used).
+          NOTES
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" build-out/BCD.ipa --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" build-out/BCD.ipa --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "BCD 0.1.$N · iPhone Duo (unsigned)" --notes-file release-notes.md
+          fi
+          echo "::notice::release $TAG: BCD.ipa ($(du -h build-out/BCD.ipa | cut -f1)) on $GITHUB_REPOSITORY"
 
       # Full logs as an artifact -- the annotations above are truncated, and
       # digging them out of the raw job log is painful.
