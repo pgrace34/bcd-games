@@ -198,17 +198,26 @@ jobs:
       # phone's scrub is tools/autotune-fixture.py's, the gzip is valid, the compressed copy
       # is deleted, automatic sending is opt-in and Wi-Fi only.
       - name: Check Send logs to BCD
+        # BCD (2026-10-29): only where the owner's log tooling is (bcd-logs/worker, tools/log-facts.py, tools/pull-logs.py:
+        # not in the public repository, so a fork's build skips this check; the owner's runs it as before).
+        if: hashFiles('bcd-logs/worker/worker.js', 'tools/log-facts.py', 'tools/pull-logs.py') != ''
         run: python3 tests/host/check-log-upload.py --require-swift
 
       # The performance trace (round 604; BCDPerfTrace*.swift): one line a second, an hour at most, the newest 20 kept, sent after a log's
       # last line when the player turned it on (or a guided debug run did), nothing at all while it is off, and tools/log-facts.py reading it.
       - name: Check the performance trace
+        # BCD (2026-10-29): only where the owner's log tooling is (bcd-logs/worker, tools/log-facts.py, tools/pull-logs.py:
+        # not in the public repository, so a fork's build skips this check; the owner's runs it as before).
+        if: hashFiles('bcd-logs/worker/worker.js', 'tools/log-facts.py', 'tools/pull-logs.py') != ''
         run: python3 tests/host/check-bcd-perftrace.py --require-swift
 
       # Help with a game (round 604; BCDHelpCore/BCDGameHelp/BCDReadinessCore.swift and their live sides): the guided debug run (nothing sent unless the
       # player taps Send, the trace and the detailed log asked for by the session only), game feedback through the existing Feedback intake, and the
       # launch check (a note on the game's page, from the import tables of its program files), with tools/pull-logs.py reading the feedback.
       - name: Check help with a game
+        # BCD (2026-10-29): only where the owner's log tooling is (bcd-logs/worker, tools/log-facts.py, tools/pull-logs.py:
+        # not in the public repository, so a fork's build skips this check; the owner's runs it as before).
+        if: hashFiles('bcd-logs/worker/worker.js', 'tools/log-facts.py', 'tools/pull-logs.py') != ''
         run: python3 tests/host/check-bcd-help.py --require-swift
 
       # Shareable control layouts (round 604; BCDControlShare*.swift): a custom layout as a small JSON file, a file added as a new layout after the
@@ -227,6 +236,9 @@ jobs:
       # session that closed unexpectedly (BCDSessionRecorderLive.swift), and the readers of the line: tools/log-facts.py and
       # the scanner behind the replay.
       - name: Check the session summary and the question after an unexpected close
+        # BCD (2026-10-29): only where the owner's log tooling is (bcd-logs/worker, tools/log-facts.py, tools/pull-logs.py:
+        # not in the public repository, so a fork's build skips this check; the owner's runs it as before).
+        if: hashFiles('bcd-logs/worker/worker.js', 'tools/log-facts.py', 'tools/pull-logs.py') != ''
         run: python3 tests/host/check-bcd-session-record.py --require-swift
 
       # Screenshots from the in-game menu and Send Log (BCDScreenshotLive.swift, LogUpload.swift, the intake's POST /v1/shots,
@@ -234,6 +246,9 @@ jobs:
       # chosen, as a small copy of 100 KB or less made apart from the kept one (BCDScreenshotShrink.swift, run on generated pictures),
       # the intake's 160 KB limit, and the pull tool saving it beside its log.
       - name: Check screenshots with Send Log
+        # BCD (2026-10-29): only where the owner's log tooling is (bcd-logs/worker, tools/log-facts.py, tools/pull-logs.py:
+        # not in the public repository, so a fork's build skips this check; the owner's runs it as before).
+        if: hashFiles('bcd-logs/worker/worker.js', 'tools/log-facts.py', 'tools/pull-logs.py') != ''
         run: python3 tests/host/check-bcd-screenshot.py --require-swift
 
       # madeira-bcd FORK-ONLY: Settings › Feedback (FeedbackUpload*.swift, BCDSettingsFeedback.swift,
@@ -241,6 +256,9 @@ jobs:
       # and fields, nothing personal in the body, the person's words untouched, the limits, the
       # section's place after Logs, and the pull tool never printing the key.
       - name: Check Settings › Feedback
+        # BCD (2026-10-29): only where the owner's log tooling is (bcd-logs/worker, tools/log-facts.py, tools/pull-logs.py:
+        # not in the public repository, so a fork's build skips this check; the owner's runs it as before).
+        if: hashFiles('bcd-logs/worker/worker.js', 'tools/log-facts.py', 'tools/pull-logs.py') != ''
         run: python3 tests/host/check-feedback.py --require-swift
 
       # A newer BCD, said at most once a day (BCDUpdateCheck.swift, BCDUpdateNotice.swift): the source's shape
