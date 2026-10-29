@@ -4388,3 +4388,54 @@ jobs:
               fi
             done
           fi
+
+  # BCD (2026-10-29): a fork's failed build names its step and keeps the job's log where the cloud session that started the
+  # build can read them. That session reaches releases and check-run annotations but not the Actions API (no run status, no
+  # logs), so this job, which can, writes an `::error::` annotation with the failed steps and the last lines before the failure,
+  # and attaches the whole job log to a DRAFT release (never public; drafts make no tag). The owner's repository never runs it.
+  diagnose:
+    needs: build
+    if: always() && needs.build.result == 'failure' && github.repository != 'thebcd69/madeira-bcd'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Name the failed step and keep the job log (draft release)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jobs=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?per_page=100")
+          jid=$(jq -r '.jobs[] | select(.name=="build") | .id' <<<"$jobs")
+          failed=$(jq -r '.jobs[] | select(.name=="build") | .steps[] | select(.conclusion=="failure") | .name' <<<"$jobs" | paste -sd '|' -)
+          echo "::error::build (job $jid) failed at: ${failed:-no step reports failure}"
+          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$jid/logs" > build-job.log 2>/dev/null || true
+          if [ ! -s build-job.log ]; then
+            curl -sSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/jobs/$jid/logs" -o build-job.log || true
+          fi
+          echo "job log: $(wc -c < build-job.log) bytes"
+          # The 60 lines before the first "Process completed with exit code", as annotations: what the session reads first.
+          python3 - <<'PY'
+          import re
+          lines = open('build-job.log', encoding='utf-8', errors='replace').read().splitlines()
+          for i, l in enumerate(lines):
+              if '##[error]Process completed with exit code' in l:
+                  tail = lines[max(0, i - 60):i + 1]
+                  break
+          else:
+              tail = lines[-60:]
+          chunks, chunk, size = [], [], 0
+          for l in tail:
+              l = re.sub(r'^\S+Z ', '', l)[:300]
+              if size + len(l) > 3500:
+                  chunks.append(chunk); chunk, size = [], 0
+              chunk.append(l); size += len(l) + 3
+          chunks.append(chunk)
+          for c in chunks[:6]:
+              print('::error::' + '%0A'.join(c))
+          PY
+          gh release create "failed-run-$GITHUB_RUN_ID" build-job.log --draft --prerelease --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Build failed: run $GITHUB_RUN_ID" \
+            --notes "The build job's log. Failed step(s): ${failed:-unknown}. $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
