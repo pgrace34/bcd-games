@@ -203,9 +203,13 @@ int main(int argc, char **argv) {
     check("  a file that is not a PE fails", run_check(dict(good, **{"vcomp140.dll": fake_dll(pe=False)}), False) == 1)
     check("  a truncated certificate table fails", run_check(dict(good, **{"vcamp140.dll": fake_dll(signed=False)}), False) == 1)
     check("  a PE32 (not PE32+) file fails", run_check(dict(good, **{"vccorlib140.dll": fake_dll(magic=0x10B)}), False) == 1)
-    doc = (R / "tools/fetch-vcruntime.md").read_text()
-    check("tools/fetch-vcruntime.md names the script, the check and the Documents folder",
-          "./tools/fetch-vcruntime.sh" in doc and "check-vcruntime.py --strict" in doc and "Documents" in doc and "cabextract" in doc)
+    # BCD (2026-10-29): the public export has no tools/fetch-vcruntime.md; a checkout without it skips its check.
+    if (R / "tools/fetch-vcruntime.md").is_file():
+        doc = (R / "tools/fetch-vcruntime.md").read_text()
+        check("tools/fetch-vcruntime.md names the script, the check and the Documents folder",
+              "./tools/fetch-vcruntime.sh" in doc and "check-vcruntime.py --strict" in doc and "Documents" in doc and "cabextract" in doc)
+    else:
+        print("SKIP tools/fetch-vcruntime.md: absent (the public export has no tools/fetch-vcruntime.md)")
 finally:
     shutil.rmtree(T, ignore_errors=True)
 

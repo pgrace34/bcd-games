@@ -140,9 +140,13 @@ check("only BCD's own link is replaced: the saved path must equal the link's des
       'guard let previous, previous == defaults.string(forKey: key + ".path") else {' in manager)
 check("a link that already leads to the chosen folder is left alone", "if previous == target.path {" in manager)
 
-# Docs and CI.
-doc = read("docs/EXTERNAL-STORAGE.md")
-check("docs/EXTERNAL-STORAGE.md credits Pardoxum and names the PR", "Pardoxum" in doc and "thebcd69/bcd-games#12" in doc)
+# Docs and CI. BCD (2026-10-29): the public export has no docs/ (as check-hardware-input.py notes), so a checkout without the
+# document skips its check instead of stopping the build there.
+if (root / "docs/EXTERNAL-STORAGE.md").is_file():
+    doc = read("docs/EXTERNAL-STORAGE.md")
+    check("docs/EXTERNAL-STORAGE.md credits Pardoxum and names the PR", "Pardoxum" in doc and "thebcd69/bcd-games#12" in doc)
+else:
+    print("SKIP docs/EXTERNAL-STORAGE.md: absent (the public export has no docs/)")
 ci = read(".github/workflows/build-ipa.yml")
 check("CI runs this check", "run: python3 tests/host/check-external-storage.py --require-swift" in ci)
 
