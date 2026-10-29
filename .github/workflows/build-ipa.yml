@@ -2240,6 +2240,29 @@ jobs:
       # (Apple's agreement, app/Madeira/d3d12/NOTICE.txt); build/madeira-d3d12/deps.sh
       # checks both against their pinned hashes. A missing or mismatched converter
       # would build the stub that draws nothing in any D3D12 game, so fail instead.
+      # BCD (2026-10-29): the public export carries no app/Madeira/d3d12/libmetalirconverter.dylib (tools/export-public.py keeps
+      # Apple's library out of the source tree); every BCD release's IPA carries it, distributed under Apple's Metal Shader
+      # Converter agreement, section 2.B (app/Madeira/d3d12/NOTICE.txt). A checkout without the file takes it from the pinned
+      # upstream release's BCD.ipa and checks it against the hash deps.sh pins for that copy (the IPA's copy is the pristine
+      # file signed ad hoc by tools/ota-variants.py) before anything is built with it; a checkout with the file (the owner's)
+      # changes nothing. The pinned release is the one this tree is based on.
+      - name: Stage the Metal Shader Converter library from the upstream release (a checkout without it)
+        if: hashFiles('app/Madeira/d3d12/libmetalirconverter.dylib') == ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://github.com/thebcd69/bcd-games/releases/download/v0.1.623/BCD.ipa"
+          WANT="4865c8ec999833d8df0df69b8a52eb819adf452b0b12df7651c409425d311e3b"   # deps.sh: ios_lib_sha_ipa
+          DEST="app/Madeira/d3d12/libmetalirconverter.dylib"
+          curl -sSL --retry 3 --retry-delay 5 -o /tmp/upstream-BCD.ipa "$URL"
+          P=$(unzip -Z1 /tmp/upstream-BCD.ipa | grep -E '/d3d12/libmetalirconverter\.dylib$' | head -1)
+          [ -n "$P" ] || { echo "::error::no d3d12/libmetalirconverter.dylib inside $URL"; exit 1; }
+          unzip -p /tmp/upstream-BCD.ipa "$P" > "$DEST"
+          HAVE=$(shasum -a 256 "$DEST" | cut -d' ' -f1)
+          [ "$HAVE" = "$WANT" ] || { rm -f "$DEST"; echo "::error::$P from $URL has SHA-256 $HAVE; build/madeira-d3d12/deps.sh pins $WANT"; exit 1; }
+          rm -f /tmp/upstream-BCD.ipa
+          echo "::notice::Metal Shader Converter iOS library staged from $URL ($P), SHA-256 $WANT"
+
       - name: Locate Metal Shader Converter headers
         shell: bash
         run: |
