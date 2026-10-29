@@ -173,24 +173,53 @@ enum ResolutionChoices {
     }
 
     /// The screen in landscape: `points` give its shape, `pixels` its native size.
-    struct Screen {
+    struct Screen: Equatable {
         var points: CGSize
         var pixels: CGSize
     }
 
-    /// Read once. MadeiraApp.init touches it first, on the main thread;
-    /// library entries (whose default comes from it) are also made off it.
-    static var screen: Screen = {
+    /// The display the app is on. Read at launch (MadeiraApp.init touches it first, on the main thread) and again whenever
+    /// the display changes under the app (BCD, 2026-10-29: an iPhone Duo folds and unfolds between its 5.4-inch and 7.6-inch
+    /// displays without a restart; BCDDisplayLive.swift calls refreshScreen). Any thread may read it: library entries, whose
+    /// default Resolution comes from it, are also made off the main thread.
+    static var screen: Screen {
+        screenLock.lock()
+        defer { screenLock.unlock() }
+        return storedScreen
+    }
+    private static let screenLock = NSLock()
+    private static var storedScreen = firstScreen()
+
+    private static func firstScreen() -> Screen {
         #if canImport(UIKit)
+        // BCD Duo fork (modified 2026-11-06): upstream's inner-display shape is the starting point on the foldable iPhone with
+        // its switch on; after launch, refreshScreen (BCDDisplayLive.swift) follows the display the window is really on.
         if let inner = BCDFoldable.innerScreen { return Screen(points: inner.points, pixels: inner.pixels) }   // madeira-bcd foldable (experimental): the foldable iPhone with its switch on takes the inner display's shape (UIScreen.main is ambiguous there); nil, and nothing changes, everywhere else
-        let b = UIScreen.main.bounds, n = UIScreen.main.nativeBounds
-        return Screen(points: CGSize(width: max(b.width, b.height), height: min(b.width, b.height)),
-                      pixels: CGSize(width: max(n.width, n.height), height: min(n.width, n.height)))
+        return landscape(points: UIScreen.main.bounds.size, pixels: UIScreen.main.nativeBounds.size)
         #else
         // Hosts without UIKit (the host tests): an 11-inch iPad.
         return Screen(points: CGSize(width: 1180, height: 820), pixels: CGSize(width: 2360, height: 1640))
         #endif
-    }()
+    }
+
+    /// `points` and `pixels`, given in any orientation, as the landscape screen the choices are built from.
+    static func landscape(points: CGSize, pixels: CGSize) -> Screen {
+        Screen(points: CGSize(width: max(points.width, points.height), height: min(points.width, points.height)),
+               pixels: CGSize(width: max(pixels.width, pixels.height), height: min(pixels.width, pixels.height)))
+    }
+
+    /// The display changed, or may have: the choices follow `points` and `pixels`, given in any orientation. True when
+    /// they differ from the screen in use; an empty size changes nothing.
+    @discardableResult
+    static func refreshScreen(points: CGSize, pixels: CGSize) -> Bool {
+        let next = landscape(points: points, pixels: pixels)
+        guard next.points.height > 0, next.pixels.height > 0 else { return false }
+        screenLock.lock()
+        defer { screenLock.unlock() }
+        guard next != storedScreen else { return false }
+        storedScreen = next
+        return true
+    }
 
     /// Pixel counts of the screen-shaped choices: a light one (944x656's, 0.8x
     /// an 11-inch iPad's points), the default (1280x720's: 1408x648 on a 19.5:9
@@ -287,3 +316,14 @@ enum ResolutionChoices {
         return Choice(w: p[0], h: p[1], label: "\(p[0])×\(p[1]) · \(note)")
     }
 }
+
+#if canImport(UIKit)
+extension ResolutionChoices {
+    /// The display a window is on now (BCDDisplayLive.swift, when the root view's size changes). Main thread. True when
+    /// the choices changed.
+    @discardableResult
+    static func refreshScreen(from screen: UIScreen) -> Bool {
+        refreshScreen(points: screen.bounds.size, pixels: screen.nativeBounds.size)
+    }
+}
+#endif

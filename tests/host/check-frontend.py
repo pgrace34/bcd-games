@@ -461,6 +461,23 @@ expect(RC.metalFX(for: ipad, in: ig)?.label == "688×480 · for MetalFX 1.5×" &
        && RC.metalFX(for: phone16, in: RC.groups(for: phone16))?.value == "1040x480",
        "MetalFX 1.5×: the screen's shape at 480 lines, not repeated where 4:3 already has 640x480")
 
+// BCD (2026-10-29): the display changes under the app (iPhone Duo: folded, a 5.4-inch 1398x2034 display; unfolded, a 7.6-inch
+// 1878x2670 one; BCDDisplayLive.swift). refreshScreen takes the new display in any orientation, says whether anything changed,
+// and refuses an empty size; the choices and the default follow it.
+let host = RC.screen
+expect(RC.refreshScreen(points: CGSize(width: 626, height: 890), pixels: CGSize(width: 1878, height: 2670)),
+       "iPhone Duo unfolded: a new display changes the screen")
+expect(RC.screen.points == CGSize(width: 890, height: 626) && RC.screen.pixels == CGSize(width: 2670, height: 1878),
+       "the screen is kept in landscape, given upright")
+expect(!RC.refreshScreen(points: CGSize(width: 890, height: 626), pixels: CGSize(width: 2670, height: 1878)),
+       "the same display again changes nothing")
+expect(!RC.refreshScreen(points: .zero, pixels: CGSize(width: 1, height: 1)) && RC.screen.points.width == 890, "an empty size is refused")
+expect(RC.defaultValue == "1152x808" && RC.screen720() == nil && sizes(RC.groups()[0]) == ["936x656", "1152x808", "1720x1208", "2670x1878"],
+       "iPhone Duo unfolded: its own shape (1.42:1), 720p's pixels by default, no 720-lines size (the default has more), nothing past native")
+expect(RC.refreshScreen(points: CGSize(width: 466, height: 678), pixels: CGSize(width: 1398, height: 2034)) && RC.defaultValue == "1152x792",
+       "iPhone Duo folded: the outer display's shape")
+expect(RC.refreshScreen(points: host.points, pixels: host.pixels) && RC.screen == host, "back to the host's screen")
+
 // Controller navigation.
 let c = LibraryController.shared
 var got: [String] = []

@@ -32,6 +32,9 @@ struct MadeiraApp: App {
             // BCD's interface (BCDLiveFrontEnd, shown by ContentView) is the app's only interface.
             ContentView()
                 .modifier(ClaimGamepadEvents())
+                // BCD (2026-10-29): the display under the app changes without a restart (an iPhone Duo folds and unfolds):
+                // the Resolution choices, the touch overlay and the game surface follow it (BCDDisplayLive.swift).
+                .modifier(BCDDisplayWatchModifier())
                 .onAppear {
                     GamepadInput.shared.start()
                     // BCD (2026-10-18): controllers, their tester and the key mapping (BCDControllerHub.swift).

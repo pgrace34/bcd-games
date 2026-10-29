@@ -515,6 +515,23 @@ final class ControlPresetsModel: ObservableObject {
         load(ControlPresetLayout.xboxID, screen: screen, reason: "new-user-default")
     }
 
+    /// BCD (2026-10-29): the display changed under the overlay (an iPhone Duo folded or unfolded, a pane of two apps resized;
+    /// BCDDisplayLive.swift). A built-in layout on screen as shipped is laid out again for the new screen, as loading it there
+    /// would; it is left alone when that gives the same places (a rotation). A player's own layout, an edited built-in (unsaved
+    /// controls) and an edit in progress keep their places: they are fractions of the screen and stay where they were put.
+    func displayChanged(screen: ControlPresetScreen) {
+        guard Self.enabled else { return }
+        let m = TouchControlsModel.shared
+        guard !m.editing, let id = m.layoutID, ControlPresetStore.isBuiltIn(id), let preset = store.preset(id),
+              screen.width > 0, screen.height > 0 else { return }
+        let fitted = ControlPresetStore.layout(of: preset, screen: screen)
+        let same = fitted.count == m.controls.count && zip(fitted, m.controls).allSatisfy {
+            $0.nx == $1.nx && $0.ny == $1.ny && $0.scale == $1.scale && $0.action == $1.action
+        }
+        guard !same else { return }
+        load(id, screen: screen, reason: "display-changed")
+    }
+
     /// Replace the on-screen layout with this one.
     func load(_ id: String, screen: ControlPresetScreen, reason: String = "chosen") {
         guard let p = store.preset(id) else { return }

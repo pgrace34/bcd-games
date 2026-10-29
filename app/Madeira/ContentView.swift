@@ -2900,6 +2900,17 @@ enum TouchControlsHost {
         fputs("[controls] ml644 overlay attached frame=\(window?.frame ?? .zero) " +
               "controls=\(TouchControlsModel.shared.controls.count)\n", stderr)
     }
+
+    /// BCD (2026-10-29): the scene's size changed without a rotation (an iPhone Duo folded or unfolded, a pane of two
+    /// apps resized; BCDDisplayLive.swift): the window follows the scene. Nothing is made here: without a session's window
+    /// there is nothing to re-frame.
+    static func reframe() {
+        guard let window, let scene = window.windowScene else { return }
+        let bounds = scene.coordinateSpace.bounds
+        guard window.frame != bounds else { return }
+        window.frame = bounds
+        fputs("[controls] overlay re-framed frame=\(bounds)\n", stderr)
+    }
 }
 
 struct TouchControlsOverlay: View {

@@ -203,6 +203,10 @@ How well a game runs varies a lot; many games do not start yet.
   geometry shaders or tessellation need an A14 or newer; the heaviest games need an
   A17 Pro or M-series chip and plenty of memory. Devices with an A12 or older chip are not
   supported (their GPUs lack what Direct3D needs).
+- **iPhone Duo:** BCD follows the display you are on. Fold or unfold while BCD runs and the
+  Resolution choices, the game's picture and the touch controls are laid out for the new display.
+  A build made with Xcode 27.1 or newer uses the whole inner display; an older build runs on it
+  in a compatibility size.
 - **JIT.** iOS lets only an app a debugger starts generate code, and BCD needs that for
   every game:
   - iOS 26 or later on A15 / M2 and newer: BCD's built-in helper (paired once on the

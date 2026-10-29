@@ -62,7 +62,9 @@ import WebKit
         guard let top = topController() else { completion(nil); return }
         let sheet = BCDWebSignIn(page: page, completion: completion)
         let navigation = UINavigationController(rootViewController: sheet)
-        navigation.modalPresentationStyle = UIDevice.current.userInterfaceIdiom == .pad ? .formSheet : .fullScreen
+        // BCD (2026-10-29): a sheet where the window is wide (an iPad, an iPhone Duo unfolded), the whole screen where it
+        // is not: the window's width class decides, not the kind of device (Apple's rule for the Duo).
+        navigation.modalPresentationStyle = top.traitCollection.horizontalSizeClass == .regular ? .formSheet : .fullScreen
         navigation.isModalInPresentation = true
         top.present(navigation, animated: true)
     }

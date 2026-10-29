@@ -201,16 +201,23 @@ private enum BCDLiveKey {
     @Published private(set) var direct3D9 = ""
     @Published private(set) var orientation = ""
     @Published private(set) var hudEveryGame = BCDHUDState.everyGame == .off ? "" : BCDHUDState.everyGame.rawValue
-    let resolutions: [BCDResolution]
-    let defaultResolution = ResolutionChoices.defaultValue
+    /// BCD (2026-10-29): read as shown, not once: the display under the app changes (an iPhone Duo folds and unfolds) and
+    /// ResolutionChoices follows it (BCDDisplayLive.swift), so this list and its default do too.
+    var resolutions: [BCDResolution] { Self.choices() }
+    var defaultResolution: String { ResolutionChoices.defaultValue }
     let displayRate = ProMotionIntent.panelMaxFPS
     let displaySwitchesShown = RuntimeMemorySyncSettings.shown
     var restartNeeded: Bool { false }
 
     init() {
+        read()
+    }
+
+    /// This display's choices (ResolutionChoices.groups), each with its shape for the picker.
+    private static func choices() -> [BCDResolution] {
         let screen = ResolutionChoices.screen
         let native = (Int(screen.pixels.width), Int(screen.pixels.height))
-        resolutions = ResolutionChoices.groups().flatMap(\.choices).map { choice in
+        return ResolutionChoices.groups().flatMap(\.choices).map { choice in
             let shape: BCDResolution.Shape
             if choice.w == native.0 && choice.h == native.1 { shape = .native }
             else if ResolutionChoices.widescreen.contains(where: { $0 == (choice.w, choice.h) }) && !ResolutionChoices.fills(choice.w, choice.h) { shape = .wide }
@@ -218,7 +225,6 @@ private enum BCDLiveKey {
             else { shape = .screen }
             return BCDResolution(width: choice.w, height: choice.h, shape: shape)
         }
-        read()
     }
 
     private func read() {

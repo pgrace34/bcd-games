@@ -107,6 +107,9 @@ ENGINE_BOUND |= {"BCDGraphicsDefaults.swift"}
 # Settings row, which never shows off the foldable model, build here; BCDFoldableLive.swift names the game view, the control window
 # and LogStore, so it stays out).
 ENGINE_BOUND |= {"BCDFoldableLive.swift"}
+# The display watch (BCD, 2026-10-29, iPhone Duo): it names the Resolution choices, the touch overlay's window, the layout store and the
+# game surface, so it stays out; the preview photographs its screens at fixed sizes.
+ENGINE_BOUND |= {"BCDDisplayLive.swift"}
 SCREENS += ["ingame-menu", "starting", "overlay"]
 
 

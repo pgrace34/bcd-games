@@ -18,7 +18,11 @@ jobs:
   build:
     # madeira-bcd: runs only in the owner's repository; a fork's run is skipped.
     if: github.repository == 'thebcd69/madeira-bcd'
-    runs-on: macos-15
+    # BCD (2026-10-29): macos-26, for Xcode 27.1 and the iOS 27.1 SDK. An app built with an older SDK runs on iPhone Duo in a
+    # compatibility size and never gets the whole inner display (Apple, "Prepare your app for iPhone Duo"); Xcode 27 needs
+    # macOS 26. The SDK's version is checked after the toolchain step: a warning, not a failure, so a runner image behind
+    # Apple's releases still builds.
+    runs-on: macos-26
     # contents: write only so the token can see DRAFT releases, which is where
     # the Metal Shader Converter installer is kept (drafts are not public).
     # Nothing in this job creates, edits or pushes anything.
@@ -32,8 +36,9 @@ jobs:
           submodules: recursive
 
       # ContentView.swift uses glassEffect(.regular, in:), which needs the
-      # iOS 26 SDK. The runner defaults to Xcode 16.4 (iOS 18.5), so pick the
-      # newest Xcode installed rather than whatever xcode-select points at.
+      # iOS 26 SDK, and iPhone Duo's inner display needs the iOS 27.1 SDK. The
+      # runner's default Xcode is older than the newest it has installed, so pick
+      # the newest Xcode installed rather than whatever xcode-select points at.
       - name: Select newest Xcode
         shell: bash
         run: |
@@ -68,6 +73,18 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-path
           xcrun --sdk iphoneos --show-sdk-version
           clang --version
+
+      # BCD (2026-10-29): iPhone Duo. Built with an SDK older than iOS 27.1 the app runs on the Duo in a compatibility size
+      # on the inner display; with 27.1 or newer it extends to the display's edges. A warning, not a failure (see runs-on).
+      - name: Check the iOS SDK is 27.1 or newer (iPhone Duo's inner display)
+        shell: bash
+        run: |
+          v=$(xcrun --sdk iphoneos --show-sdk-version)
+          if [ "$(printf '%s\n' 27.1 "$v" | sort -V | head -1)" != "27.1" ]; then
+            echo "::warning::iOS SDK $v is older than 27.1: on iPhone Duo this build keeps to the inner display's compatibility size"
+          else
+            echo "::notice::iOS SDK $v: the build uses the whole iPhone Duo inner display"
+          fi
 
       - name: Check generated settings catalog
         run: python3 tests/host/check-config-catalog.py
