@@ -24,13 +24,14 @@ jobs:
     # madeira-bcd: runs only in the owner's repository; a fork's run is skipped.
     # BCD (2026-10-29): and in DanielTangnes/bcd-games, which publishes its unsigned IPA as a release (the step at the end).
     if: github.repository == 'thebcd69/madeira-bcd' || github.repository == 'DanielTangnes/bcd-games'
-    # BCD (2026-10-29): macos-26, for Xcode 27.1 and the iOS 27.1 SDK once the image carries them. An app built with an older
-    # SDK runs on iPhone Duo in a compatibility size and never gets the whole inner display (Apple, "Prepare your app for
-    # iPhone Duo"); Xcode 27 needs macOS 26. On 2026-10-29 the image's newest Xcode was 26.6 (iOS SDK 26.5), so the SDK check
-    # after the toolchain step warns; it is a warning, not a failure, so the build goes on. (The macOS 26 SDK also reaches the
-    # host checks that compile engine C: tests/host/check-fault-guard-guest-rip.py and check-fault-loop-guest-progress.py
-    # now #undef the thread-state accessors it leaks before defining their own.)
-    runs-on: macos-26
+    # BCD (2026-10-30): GitHub's xcode-27 image (a preview: macOS 27, Xcode 27.1 as the default, 27.0 and the 27.2 release
+    # candidate beside it, the iOS 27.1 SDK and the iPhone Duo simulator runtime; actions/runner-images#14404). An app built
+    # with an SDK older than iOS 27.1 runs on iPhone Duo centred on the inner display with empty space around it (Apple,
+    # "Prepare your app for iPhone Duo"); macos-26's newest Xcode was 26.6 (iOS SDK 26.5) on 2026-10-29. The SDK check after
+    # the toolchain step says which SDK the build has; with an older one it warns and the stamp after the archive asks iOS
+    # for the 27.1 layout. (A newer macOS SDK also reaches the host checks that compile engine C: see the #undef of the
+    # thread-state accessors in tests/host/check-fault-guard-guest-rip.py and check-fault-loop-guest-progress.py.)
+    runs-on: xcode-27
     # contents: write only so the token can see DRAFT releases, which is where
     # the Metal Shader Converter installer is kept (drafts are not public).
     # Nothing in this job creates, edits or pushes anything.
@@ -56,9 +57,12 @@ jobs:
         run: |
           echo "-- installed Xcodes --"
           ls -d /Applications/Xcode*.app 2>/dev/null || echo "(none beyond the default)"
-          # BCD (2026-10-29): the newest stable one; a beta or release candidate only when nothing else is installed.
-          NEWEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | grep -viE 'beta|_rc|-rc' | sort -V | tail -1)
-          [ -n "$NEWEST" ] || NEWEST=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          # BCD (2026-10-29): the newest stable one; a beta or release candidate only when nothing else is installed. Each entry is
+          # resolved to its real bundle first: the xcode-27 image lists Xcode_27.2.0.app and Xcode_27.2.app as links to
+          # Xcode_27.2_Release_Candidate.app, beside 27.1 (the default) and 27.0.
+          REAL=$(for x in /Applications/Xcode*.app; do readlink -f "$x"; done 2>/dev/null | sort -u)
+          NEWEST=$(printf '%s\n' "$REAL" | grep -viE 'beta|release_candidate|_rc\b|-rc\b' | sort -V | tail -1)
+          [ -n "$NEWEST" ] || NEWEST=$(printf '%s\n' "$REAL" | sort -V | tail -1)
           if [ -n "$NEWEST" ]; then
             sudo xcode-select -s "$NEWEST/Contents/Developer"
             echo "::notice::selected $NEWEST"
@@ -4417,11 +4421,11 @@ jobs:
             out again for the new display.
           - Settings › Graphics reads its resolution list as shown, not once at launch.
           - The Steam, Epic and GOG sign-in sheet follows the window's width class, not the kind of device.
-          - Built on macOS 26 with the newest stable Xcode GitHub's runners carry (the build's log says which SDK that was) and,
-            where that SDK is older than iOS 27.1, stamped as built with the iOS 27.1 SDK after the archive, so iPhone Duo lays
-            the app out across the whole inner display instead of centring it with empty space around it. The code itself was
-            compiled against the older SDK; iOS also applies to it whatever it keys to apps linked on 27.1. A build without the
-            stamp: set the repository variable BCD_DUO_SDK_STAMP to off.
+          - Built on GitHub's xcode-27 runner image with the newest stable Xcode it carries (the build's log names the SDK; the
+            image had Xcode 27.1 and the iOS 27.1 SDK on 2026-10-30, which is what iPhone Duo's whole inner display needs).
+            Should the image fall back to an SDK older than iOS 27.1, the app is stamped as built with the 27.1 SDK after the
+            archive instead (the code then compiled against the older SDK); the repository variable BCD_DUO_SDK_STAMP set to
+            off leaves such a build unstamped.
           NOTES
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" build-out/BCD.ipa --clobber --repo "$GITHUB_REPOSITORY"
