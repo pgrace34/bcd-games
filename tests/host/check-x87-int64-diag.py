@@ -146,8 +146,20 @@ MAIN = r'''
 static uint64_t alloc_at(uint64_t a, size_t n)
 {
     mach_vm_address_t m = a;
-    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED) != KERN_SUCCESS) { puts("alloc-failed"); exit(3); }
+    kern_return_t kr = mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED);
+    if (kr != KERN_SUCCESS) { printf("alloc-failed %llx kr=%d\n", (unsigned long long)a, (int)kr); exit(3); }
     return a;
+}
+/* BCD (2026-10-29): a region the harness needs somewhere, not at one address (the fake pool, whose address the scenarios only
+ * use relatively): at the preferred address where it is free, anywhere otherwise. On GitHub's macos-26 runner the dyld shared
+ * cache covers 0x3xxxxxxxx, where the pool used to be pinned, and the fixed allocation failed. */
+static uint64_t alloc_anywhere(uint64_t preferred, size_t n)
+{
+    mach_vm_address_t m = preferred;
+    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED) == KERN_SUCCESS) return preferred;
+    m = 0;
+    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) { puts("alloc-failed anywhere"); exit(3); }
+    return (uint64_t)m;
 }
 static void w32(uint64_t a, uint32_t v) { memcpy((void *)a, &v, 4); }
 static void w64(uint64_t a, uint64_t v) { memcpy((void *)a, &v, 8); }
@@ -164,7 +176,7 @@ static struct world make(const uint32_t *code, size_t words, uint32_t eax, uint3
     static uint64_t pool;
     struct world w;
     memset(&w, 0, sizeof(w));
-    if (!pool) pool = alloc_at(0x300000000ULL + 0x1000000, 0x10000);
+    if (!pool) pool = alloc_anywhere(0x300000000ULL + 0x1000000, 0x10000);
     w.pool = pool;
     ios_jit_rx_base_global = (void *)pool; ios_jit_pool_size_global = 0x10000;
     memcpy((void *)(pool + 0x1000 - words * 4), code, words * 4);
@@ -216,7 +228,7 @@ int main(int argc, char **argv)
     }
     if (!strcmp(s, "pair")) {
         unsigned a = 0, b = 0;
-        uint64_t base = alloc_at(0x300000000ULL + 0x2000000, 0x4000);
+        uint64_t base = alloc_anywhere(0x300000000ULL + 0x2000000, 0x4000);
         memcpy((void *)(base + 0x100), batman, sizeof(batman));
         printf("batman=%d\n", ios_x87i_find_pair(base + 0x100 + sizeof(batman) - 0x20, &a, &b));
         printf("a=%x b=%x\n", a, b);

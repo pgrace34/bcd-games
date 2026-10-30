@@ -148,8 +148,20 @@ MAIN = r'''
 static uint64_t alloc_at(uint64_t a, size_t n)
 {
     mach_vm_address_t m = a;
-    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED) != KERN_SUCCESS) { puts("alloc-failed"); exit(3); }
+    kern_return_t kr = mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED);
+    if (kr != KERN_SUCCESS) { printf("alloc-failed %llx kr=%d\n", (unsigned long long)a, (int)kr); exit(3); }
     return a;
+}
+/* BCD (2026-10-29): a region the harness needs somewhere, not at one address (the fake pool, whose address the scenarios only
+ * use relatively): at the preferred address where it is free, anywhere otherwise. On GitHub's macos-26 runner the dyld shared
+ * cache covers 0x3xxxxxxxx, where the pool used to be pinned, and the fixed allocation failed. */
+static uint64_t alloc_anywhere(uint64_t preferred, size_t n)
+{
+    mach_vm_address_t m = preferred;
+    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED) == KERN_SUCCESS) return preferred;
+    m = 0;
+    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_ANYWHERE) != KERN_SUCCESS) { puts("alloc-failed anywhere"); exit(3); }
+    return (uint64_t)m;
 }
 static void w32(uint64_t a, uint32_t v) { memcpy((void *)a, &v, 4); }
 static void w16(uint64_t a, uint16_t v) { memcpy((void *)a, &v, 2); }
@@ -177,7 +189,7 @@ static struct world make(int with_ldr, int with_stack, int with_tls)
     if (!built)
     {
         built = 1;
-        pool = alloc_at(0x300000000ULL + 0x1000000, 0x10000);
+        pool = alloc_anywhere(0x300000000ULL + 0x1000000, 0x10000);
         alloc_at(WIN + 0x300000, 0x20000);          /* TEB64 page(s), TEB32 at +0x2000, PEB32 at 0x311000 */
         alloc_at(WIN + 0x350000, 0x10000);          /* PEB_LDR_DATA32, entries, names */
         alloc_at(WIN + 0x14fc000, 0x8000);          /* the stack around ESP 0x14ff0a0 */
