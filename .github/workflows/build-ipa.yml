@@ -4284,9 +4284,10 @@ jobs:
       # runners carry no Xcode 27.1, so where the SDK is older this stamps the archived executable as 27.1 (vtool, the minimum
       # iOS unchanged) and the Info.plist's DTSDKName and DTPlatformVersion with it. The code is still the one compiled against
       # the older SDK: the stamp asks iOS for the 27.1 layout, and iOS also applies to it whatever it keys to apps linked on 27.1.
-      # Off with the repository variable BCD_DUO_SDK_STAMP=0; not run where the SDK is already 27.1 or newer, nor by the owner.
+      # Off with the repository variable BCD_DUO_SDK_STAMP set to off (an unset variable is null, which GitHub's expressions compare
+      # as 0, so the switch is a word, not 0); not run where the SDK is already 27.1 or newer, nor by the owner.
       - name: Stamp the app as built with the iOS 27.1 SDK (iPhone Duo's whole inner display)
-        if: env.OTA_CONFIGURED != 'true' && vars.BCD_DUO_SDK_STAMP != '0'
+        if: env.OTA_CONFIGURED != 'true' && vars.BCD_DUO_SDK_STAMP != 'off'
         shell: bash
         run: |
           set -euo pipefail
@@ -4402,6 +4403,9 @@ jobs:
         run: |
           TAG="v0.1.$N"
           cp "build-out/Madeira-0.1.$N-unsigned.ipa" build-out/BCD.ipa
+          # What the shipped executable says it was built with (iPhone Duo lays the app out by it): one line in the run's annotations.
+          STAMP=$(xcrun vtool -show-build build-out/Madeira.xcarchive/Products/Applications/Madeira.app/Madeira | awk '$1 == "minos" || $1 == "sdk" {printf "%s %s ", $1, $2}')
+          echo "::notice::BCD.ipa's executable: $STAMP(LC_BUILD_VERSION)"
           cat > release-notes.md <<NOTES
           BCD 0.1.$N, built by GitHub Actions from \`$GITHUB_REF_NAME\` at ${GITHUB_SHA:0:12}. Unsigned: install it with
           SideStore or AltStore, LiveContainer, or your own signing, as the README's Install section says.
@@ -4417,7 +4421,7 @@ jobs:
             where that SDK is older than iOS 27.1, stamped as built with the iOS 27.1 SDK after the archive, so iPhone Duo lays
             the app out across the whole inner display instead of centring it with empty space around it. The code itself was
             compiled against the older SDK; iOS also applies to it whatever it keys to apps linked on 27.1. A build without the
-            stamp: set the repository variable BCD_DUO_SDK_STAMP to 0.
+            stamp: set the repository variable BCD_DUO_SDK_STAMP to off.
           NOTES
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" build-out/BCD.ipa --clobber --repo "$GITHUB_REPOSITORY"
