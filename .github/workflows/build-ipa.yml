@@ -4297,6 +4297,7 @@ jobs:
       # Off with the repository variable BCD_DUO_SDK_STAMP set to off (an unset variable is null, which GitHub's expressions compare
       # as 0, so the switch is a word, not 0); not run where the SDK is already 27.1 or newer, nor by the owner.
       - name: Stamp the app as built with the iOS 27.1 SDK (iPhone Duo's whole inner display)
+        id: stamp
         if: env.OTA_CONFIGURED != 'true' && vars.BCD_DUO_SDK_STAMP != 'off'
         shell: bash
         run: |
@@ -4304,8 +4305,10 @@ jobs:
           APP=build-out/Madeira.xcarchive/Products/Applications/Madeira.app
           v=$(xcrun --sdk iphoneos --show-sdk-version)
           if [ "$(printf '%s\n' 27.1 "$v" | sort -V | head -1)" = "27.1" ]; then
+            echo "stamped=0" >> "$GITHUB_OUTPUT"
             echo "::notice::iOS SDK $v: the app is built with 27.1 or newer, no stamp needed"; exit 0
           fi
+          echo "stamped=1" >> "$GITHUB_OUTPUT"
           echo "-- before --"; xcrun vtool -show-build "$APP/Madeira" | sed -n '1,12p'
           minos=$(xcrun vtool -show-build "$APP/Madeira" | awk '$1 == "minos" {print $2; exit}')
           [ -n "$minos" ] || { echo "::error::no LC_BUILD_VERSION minos in $APP/Madeira"; exit 1; }
@@ -4410,12 +4413,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           N: ${{ steps.bn.outputs.n }}
+          STAMPED: ${{ steps.stamp.outputs.stamped }}
         run: |
+          set -euo pipefail
           TAG="v0.1.$N"
           cp "build-out/Madeira-0.1.$N-unsigned.ipa" build-out/BCD.ipa
           # What the shipped executable says it was built with (iPhone Duo lays the app out by it): one line in the run's annotations.
-          STAMP=$(xcrun vtool -show-build build-out/Madeira.xcarchive/Products/Applications/Madeira.app/Madeira | awk '$1 == "minos" || $1 == "sdk" {printf "%s %s ", $1, $2}')
-          echo "::notice::BCD.ipa's executable: $STAMP(LC_BUILD_VERSION)"
+          BUILD=$(xcrun vtool -show-build build-out/Madeira.xcarchive/Products/Applications/Madeira.app/Madeira | awk '$1 == "minos" || $1 == "sdk" {printf "%s %s ", $1, $2}')
+          echo "::notice::BCD.ipa's executable: $BUILD(LC_BUILD_VERSION)"
+          XCODE=$(xcodebuild -version | awk 'NR == 1 {x = $0} NR == 2 {b = $NF} END {printf "%s (%s)", x, b}')
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version)
+          LC_SDK=$(awk '{for (i = 1; i < NF; i++) if ($i == "sdk") print $(i + 1)}' <<<"$BUILD")
+          # The notes say what this build is, not what the workflow might do: built against 27.1 or newer, stamped, or left alone.
+          if [ "${STAMPED:-0}" = "1" ]; then
+            HOW="Built with $XCODE and the iOS $SDK SDK on GitHub's xcode-27 runner image, then stamped as built with the iOS 27.1 SDK (vtool; the code is compiled against the $SDK SDK) so that iPhone Duo lays the app out across the whole inner display. The repository variable BCD_DUO_SDK_STAMP set to off leaves such a build unstamped."
+          elif [ "$(printf '%s\n' 27.1 "$SDK" | sort -V | head -1)" = "27.1" ]; then
+            HOW="Built with $XCODE and the iOS $SDK SDK on GitHub's xcode-27 runner image: the executable records the iOS $LC_SDK SDK (LC_BUILD_VERSION), which is what iPhone Duo's whole inner display needs."
+          else
+            HOW="Built with $XCODE and the iOS $SDK SDK on GitHub's xcode-27 runner image and left unstamped (BCD_DUO_SDK_STAMP is off): on iPhone Duo's inner display the app runs centred with empty space around it."
+          fi
           cat > release-notes.md <<NOTES
           BCD 0.1.$N, built by GitHub Actions from \`$GITHUB_REF_NAME\` at ${GITHUB_SHA:0:12}. Unsigned: install it with
           SideStore or AltStore, LiveContainer, or your own signing, as the README's Install section says.
@@ -4427,19 +4443,24 @@ jobs:
             out again for the new display.
           - Settings › Graphics reads its resolution list as shown, not once at launch.
           - The Steam, Epic and GOG sign-in sheet follows the window's width class, not the kind of device.
-          - Built on GitHub's xcode-27 runner image with the newest stable Xcode it carries (the build's log names the SDK; the
-            image had Xcode 27.1 and the iOS 27.1 SDK on 2026-10-30, which is what iPhone Duo's whole inner display needs).
-            Should the image fall back to an SDK older than iOS 27.1, the app is stamped as built with the 27.1 SDK after the
-            archive instead (the code then compiled against the older SDK); the repository variable BCD_DUO_SDK_STAMP set to
-            off leaves such a build unstamped.
+          - $HOW
           NOTES
+          # The tag follows the commit the IPA was built from: a release already there under this build number (an earlier commit
+          # of the branch) is replaced, tag included, rather than handed another asset under a tag that points at the older commit.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" build-out/BCD.ipa --clobber --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$TAG" build-out/BCD.ipa --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "BCD 0.1.$N · iPhone Duo (unsigned)" --notes-file release-notes.md
+            gh release delete "$TAG" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY"
           fi
-          echo "::notice::release $TAG: BCD.ipa ($(du -h build-out/BCD.ipa | cut -f1)) on $GITHUB_REPOSITORY"
+          gh release create "$TAG" build-out/BCD.ipa --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "BCD 0.1.$N · iPhone Duo (unsigned)" --notes-file release-notes.md
+          echo "::notice::release $TAG: BCD.ipa ($(du -h build-out/BCD.ipa | cut -f1)) on $GITHUB_REPOSITORY at ${GITHUB_SHA:0:12}"
+          # The diagnose job's draft releases (failed-run-<run id>, each holding a failed run's job log) have served once a build
+          # gets this far: clear them. Best effort; the release above is the deliverable.
+          { gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.draft and (.tag_name | startswith("failed-run-"))) | "\(.id) \(.tag_name)"' || true; } |
+          while read -r id tag; do
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" >/dev/null && echo "removed the draft release $tag" \
+              || echo "::warning::could not remove the draft release $tag"
+          done
 
       # Full logs as an artifact -- the annotations above are truncated, and
       # digging them out of the raw job log is painful.
