@@ -130,7 +130,6 @@ int main(int argc, char **argv)
 {
     const char *s = argc > 1 ? argv[1] : "";
     choose_home();
-    if (!strcmp(s, "home")) { printf("home=%llx\n", (unsigned long long)G); return 0; }   /* for the checks that name addresses */
     uint8_t *g = page(G, 0x8000), *a = page(G + 0x100000000ULL, 0x8000);
     /* the guest view: the block's address G + 0x1e0 sits 0x1e0 into the first page; bytes ramp 0,1,2,... so every row is checkable */
     for (unsigned i = 0; i < 0x4000; i++) { g[i] = (uint8_t)i; a[i] = (uint8_t)i; }
@@ -187,20 +186,26 @@ else:
             def lines(r):
                 return [l for l in r.stderr.splitlines() if l.startswith('[ill-guest]')]
 
-            # BCD (2026-10-29): where the harness put the guest and alias pages (0x6000000000 where that is free); two checks name them.
-            home = int(run('home').stdout.split('home=')[1].split()[0], 16)
+            # BCD (2026-10-29): the harness keeps its pages at 0x6000000000 where that span is free and finds another otherwise, and
+            # every scenario is its own process, so the span can differ between runs: the two checks that name addresses read the
+            # block's address from the run's own headline and check what must hold (its page offset; the alias 4 GB above it).
+            def guest_of(ls):
+                m = re.search(r' at guest 0x([0-9a-f]+) \(host pc 0x169ff84e8\)', ls[0]) if ls else None
+                return int(m.group(1), 16) if m else None
 
             ramp = ' '.join('%02x' % ((0x1e0 - 16 + i) & 0xff) for i in range(64))
             r = run('plain')
             ls = lines(r)
+            g0 = guest_of(ls)
             check('a plain page: one headline with the 64 bytes (16 before the block, 48 from it), the block address, the host pc and "64 of 64 readable"',
-                  len(ls) == 2 and ls[0].startswith(f'[ill-guest] #1 FEX could not translate the block at guest 0x{home + 0x1e0:x} (host pc 0x169ff84e8)')
-                  and '(64 of 64 readable): ' + ramp in ls[0], r.stderr)
+                  len(ls) == 2 and ls[0].startswith('[ill-guest] #1 FEX could not translate the block at guest 0x') and g0 is not None
+                  and g0 % 0x4000 == 0x1e0 and '(64 of 64 readable): ' + ramp in ls[0], r.stderr)
             check('...and says that no anonymous RWX alias covers it', 'no anonymous RWX alias covers that address' in ls[1], r.stderr)
             r = run('same')
             ls = lines(r)
+            g1 = guest_of(ls)
             check('an alias that agrees: "the two views agree" with the alias pointer', len(ls) == 2 and 'the two views agree' in ls[1]
-                  and f'alias pointer 0x{home + 0x100000000 + 0x1e0:x}' in ls[1], r.stderr)
+                  and g1 is not None and f'alias pointer 0x{g1 + 0x100000000:x}' in ls[1], r.stderr)
             r = run('diff')
             ls = lines(r)
             check('an alias that differs five bytes into the block: DIFFERENT, +5, the alias bytes with ff at that place',

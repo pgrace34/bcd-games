@@ -536,8 +536,13 @@ else:
             def lines(r):
                 return [l for l in r.stderr.splitlines() if l.startswith('[x86-fault]')]
 
-            # BCD (2026-10-29): the window the harness chose (0x5000000000 where that is free); the two headlines below name it.
-            win = int(run('window').stdout.split('win=')[1].split()[0], 16)
+            # BCD (2026-10-29): the harness keeps its window at 0x5000000000 where that span is free and finds another otherwise, and
+            # every scenario is its own process, so the window can differ between runs: the two headlines that name it are checked
+            # against the window the run itself reports, which must be 4 GB-aligned and at 0x100000000 or above (the engine's gate).
+            def window_of(ls):
+                m = re.search(r', window 0x([0-9a-f]+), ', ls[0]) if ls else None
+                w = int(m.group(1), 16) if m else None
+                return w if w is not None and w % 0x100000000 == 0 and w >= 0x100000000 else 0
 
             vals = {}
             for v in (None, '', '0', '11', 'true', ' 1', '1 ', 'yes', '2', '1'):
@@ -557,9 +562,10 @@ else:
             allv = r.stderr.splitlines()
             if os.environ.get('X86F_DEBUG'):
                 print(r.stderr)
+            win = window_of(ls)
             check('the headline: the fault address, the block and its module+RVA, the registers of the 592 log',
-                  ls and ls[0].startswith('[x86-fault] #1 a 32-bit guest faulted at guest 0xb514ab6a in the block that starts at guest 0x0081ab75 (speed.exe+0x41ab75), '
-                                          f'window 0x{win:x}, 2 modules in the PEB32 list;')
+                  ls and win and ls[0].startswith('[x86-fault] #1 a 32-bit guest faulted at guest 0xb514ab6a in the block that starts at guest 0x0081ab75 (speed.exe+0x41ab75), '
+                                                  f'window 0x{win:x}, 2 modules in the PEB32 list;')
                   and 'EAX=0xa6a0110 ECX=0xb514ab6a EDX=0x0 EBX=0x0 ESI=0x0 EDI=0xa6a00c0 EBP=0x127fdf4 ESP=0x127fddc' in ls[0], r.stderr)
             check('the fault address minus each register shows the pattern: -EDI=0xaaaaaaaa, and -ECX=0x0',
                   any('fault address minus each register (mod 2^32):' in l and '-EDI=0xaaaaaaaa' in l and '-ECX=0x0' in l and '-EAX=0xaaaaaa5a' in l for l in ls), r.stderr)
@@ -655,8 +661,9 @@ else:
             r = run('int3', MADEIRA_X86_FAULT_DUMP='1')
             ls = lines(r)
             allv = r.stderr.splitlines()
+            win = window_of(ls)
             check('an int3: its own headline (not a fault), the registers of the Underground 2 log, and the code window labelled int3 with the cc at +0',
-                  ls and ls[0].startswith(f'[x86-fault] #1 a 32-bit guest executed int3 at guest 0x004405a9 (speed.exe+0x405a9), window 0x{win:x}, 2 modules')
+                  ls and win and ls[0].startswith(f'[x86-fault] #1 a 32-bit guest executed int3 at guest 0x004405a9 (speed.exe+0x405a9), window 0x{win:x}, 2 modules')
                   and 'EAX=0x0 ECX=0x0 EDX=0x82804c EBX=0x6 ESI=0xaa EDI=0xa6a00c0 EBP=0x127fdf4 ESP=0x127fddc' in ls[0]
                   and not any('fault address minus' in l for l in ls)
                   and any(l.startswith('[x86-fault]   code int3 +0: cc ') for l in allv), r.stderr)
