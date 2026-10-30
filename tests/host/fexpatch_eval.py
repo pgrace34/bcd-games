@@ -20,6 +20,9 @@ OVERLAY_TREES = ('FEXCore/Source', 'FEXCore/include', 'Source/Windows', 'Externa
 # "ec-ret-direct-v1 madeira-bcd"`). The checks still evaluate each overlay on the
 # chain's own input: the pin the overlays were written against, OVERLAY_BASE.
 OVERLAY_BASE = '3bec2ac498bf78156ab47c0c194b0e8cb2849756'
+# BCD (2026-10-29): the public export points the FEX submodule at thebcd69/bcd-fex, whose history does not carry OVERLAY_BASE;
+# the project's own repositories do. A checkout whose origin lacks the commit fetches it from them, in this order.
+FALLBACK_REMOTES = ['https://github.com/willfaust/FEX.git', 'https://github.com/FEX-Emu/FEX.git']
 PIN_MARKER = 'ec-ret-direct-v1 madeira-bcd'
 
 
@@ -50,7 +53,12 @@ def overlay_base(root, tmp):
     base = Path(tmp) / 'base'
     have = subprocess.run(['git', '-C', str(fex), 'cat-file', '-e', OVERLAY_BASE + '^{commit}'], capture_output=True)
     if have.returncode:
-        subprocess.run(['git', '-C', str(fex), 'fetch', '-q', '--depth=1', 'origin', OVERLAY_BASE], check=True)
+        for remote in ['origin'] + FALLBACK_REMOTES:
+            r = subprocess.run(['git', '-C', str(fex), 'fetch', '-q', '--depth=1', remote, OVERLAY_BASE], capture_output=True, text=True)
+            if r.returncode == 0:
+                break
+        else:
+            raise SystemExit(f"fexpatch_eval: {OVERLAY_BASE} is in none of origin, {', '.join(FALLBACK_REMOTES)}: {r.stderr.strip()[-300:]}")
     trees = [rel for rel in OVERLAY_TREES if not rel.startswith('External/')]
     archive = subprocess.run(['git', '-C', str(fex), 'archive', OVERLAY_BASE] + trees, check=True, capture_output=True)
     base.mkdir(parents=True)
