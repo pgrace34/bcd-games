@@ -24,10 +24,12 @@ jobs:
     # madeira-bcd: runs only in the owner's repository; a fork's run is skipped.
     # BCD (2026-10-29): and in DanielTangnes/bcd-games, which publishes its unsigned IPA as a release (the step at the end).
     if: github.repository == 'thebcd69/madeira-bcd' || github.repository == 'DanielTangnes/bcd-games'
-    # BCD (2026-10-29): macos-26, for Xcode 27.1 and the iOS 27.1 SDK. An app built with an older SDK runs on iPhone Duo in a
-    # compatibility size and never gets the whole inner display (Apple, "Prepare your app for iPhone Duo"); Xcode 27 needs
-    # macOS 26. The SDK's version is checked after the toolchain step: a warning, not a failure, so a runner image behind
-    # Apple's releases still builds.
+    # BCD (2026-10-29): macos-26, for Xcode 27.1 and the iOS 27.1 SDK once the image carries them. An app built with an older
+    # SDK runs on iPhone Duo in a compatibility size and never gets the whole inner display (Apple, "Prepare your app for
+    # iPhone Duo"); Xcode 27 needs macOS 26. On 2026-10-29 the image's newest Xcode was 26.6 (iOS SDK 26.5), so the SDK check
+    # after the toolchain step warns; it is a warning, not a failure, so the build goes on. (The macOS 26 SDK also reaches the
+    # host checks that compile engine C: tests/host/check-fault-guard-guest-rip.py and check-fault-loop-guest-progress.py
+    # now #undef the thread-state accessors it leaks before defining their own.)
     runs-on: macos-26
     # contents: write only so the token can see DRAFT releases, which is where
     # the Metal Shader Converter installer is kept (drafts are not public).
