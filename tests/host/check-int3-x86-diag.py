@@ -540,6 +540,7 @@ wine0 = Path(os.environ.get('WINE_SRC', root / 'wine'))
 if (wine0 / 'include/winternl.h').exists() and shutil.which('xcrun'):
     off_src = r'''
 #include <stddef.h>
+#include <stdarg.h>   /* BCD (2026-10-29): winternl.h needs va_list; the macOS 26 SDK's <stddef.h> no longer brings it in */
 #include "windef.h"
 #include "winternl.h"
 _Static_assert(offsetof(TEB32, Tib.StackBase) == 0x04, "stack base");
