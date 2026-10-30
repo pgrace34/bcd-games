@@ -140,7 +140,25 @@ int ios_jit_low_contains( uintptr_t a ) { (void)a; return 0; }
 '''
 
 MAIN = r'''
-#define WIN 0x5000000000ULL
+/* BCD (2026-10-29): the 4 GB-aligned window the scenarios build the 32-bit guest in. 0x5000000000 where that whole span is
+ * free (the owner's Mac: the harness then runs exactly as before), else the first free 4 GB-aligned span, found with mach_vm_map's
+ * alignment mask; the span is released again at once, so the pages the scenarios leave unmapped stay unmapped. On GitHub's
+ * macos-26 runner 0x5000000000 is taken (KERN_NO_SPACE). The engine's gate needs only the alignment and a base of 0x100000000
+ * or more; the "window" scenario prints the choice for a check that names it. */
+static uint64_t WIN;
+static void choose_window(void)
+{
+    mach_vm_address_t a = 0x5000000000ULL;
+    const vm_prot_t rw = VM_PROT_READ | VM_PROT_WRITE;
+    if (mach_vm_map(mach_task_self(), &a, 0x100000000ULL, 0, VM_FLAGS_FIXED, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
+        a = 0;
+        if (mach_vm_map(mach_task_self(), &a, 0x100000000ULL, 0xffffffffULL, VM_FLAGS_ANYWHERE, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
+            puts("alloc-failed window"); exit(3);
+        }
+    }
+    mach_vm_deallocate(mach_task_self(), a, 0x100000000ULL);
+    WIN = a;
+}
 #define TEB64_G 0x300000u      /* the 64-bit TEB, guest-relative: the host TEB64 is WIN + this */
 #define TEB32_G 0x302000u
 #define PEB32_G 0x311000u
@@ -229,6 +247,8 @@ SCENARIOS = r'''
 int main(int argc, char **argv)
 {
     const char *s = argc > 1 ? argv[1] : "";
+    choose_window();
+    if (!strcmp(s, "window")) { printf("win=%llx\n", (unsigned long long)WIN); return 0; }
     struct world w;
 
     if (!strcmp(s, "batman")) {

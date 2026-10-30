@@ -309,7 +309,25 @@ void ios_x86f_alloc_ring_dump( uint32_t fault ) { fprintf( stderr, "[x86-fault] 
 
 # the window of the 592 log of Most Wanted: speed.exe 0x400000 (block at 0x81ab75), ntdll 0xfff40000, TEB32 0x302000, PEB32 0x311000
 MAIN = r'''
-#define WIN 0x5000000000ULL
+/* BCD (2026-10-29): the 4 GB-aligned window the scenarios build the 32-bit guest in. 0x5000000000 where that whole span is
+ * free (the owner's Mac: the harness then runs exactly as before), else the first free 4 GB-aligned span, found with mach_vm_map's
+ * alignment mask; the span is released again at once, so the pages the scenarios leave unmapped stay unmapped. On GitHub's
+ * macos-26 runner 0x5000000000 is taken (KERN_NO_SPACE). The engine's gate needs only the alignment and a base of 0x100000000
+ * or more; the "window" scenario prints the choice for a check that names it. */
+static uint64_t WIN;
+static void choose_window(void)
+{
+    mach_vm_address_t a = 0x5000000000ULL;
+    const vm_prot_t rw = VM_PROT_READ | VM_PROT_WRITE;
+    if (mach_vm_map(mach_task_self(), &a, 0x100000000ULL, 0, VM_FLAGS_FIXED, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
+        a = 0;
+        if (mach_vm_map(mach_task_self(), &a, 0x100000000ULL, 0xffffffffULL, VM_FLAGS_ANYWHERE, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
+            puts("alloc-failed window"); exit(3);
+        }
+    }
+    mach_vm_deallocate(mach_task_self(), a, 0x100000000ULL);
+    WIN = a;
+}
 #define TEB64_G 0x300000u
 #define TEB32_G 0x302000u
 #define PEB32_G 0x311000u
@@ -438,6 +456,8 @@ static void guarded_int3(struct world *w)
 int main(int argc, char **argv)
 {
     const char *s = argc > 1 ? argv[1] : "";
+    choose_window();
+    if (!strcmp(s, "window")) { printf("win=%llx\n", (unsigned long long)WIN); return 0; }
     struct world w;
 
     if (!strcmp(s, "enabled")) { printf("enabled=%d\n", ios_x86_fault_enabled()); return 0; }
@@ -516,6 +536,9 @@ else:
             def lines(r):
                 return [l for l in r.stderr.splitlines() if l.startswith('[x86-fault]')]
 
+            # BCD (2026-10-29): the window the harness chose (0x5000000000 where that is free); the two headlines below name it.
+            win = int(run('window').stdout.split('win=')[1].split()[0], 16)
+
             vals = {}
             for v in (None, '', '0', '11', 'true', ' 1', '1 ', 'yes', '2', '1'):
                 r = run('enabled') if v is None else run('enabled', MADEIRA_X86_FAULT_DUMP=v)
@@ -536,7 +559,7 @@ else:
                 print(r.stderr)
             check('the headline: the fault address, the block and its module+RVA, the registers of the 592 log',
                   ls and ls[0].startswith('[x86-fault] #1 a 32-bit guest faulted at guest 0xb514ab6a in the block that starts at guest 0x0081ab75 (speed.exe+0x41ab75), '
-                                          'window 0x5000000000, 2 modules in the PEB32 list;')
+                                          f'window 0x{win:x}, 2 modules in the PEB32 list;')
                   and 'EAX=0xa6a0110 ECX=0xb514ab6a EDX=0x0 EBX=0x0 ESI=0x0 EDI=0xa6a00c0 EBP=0x127fdf4 ESP=0x127fddc' in ls[0], r.stderr)
             check('the fault address minus each register shows the pattern: -EDI=0xaaaaaaaa, and -ECX=0x0',
                   any('fault address minus each register (mod 2^32):' in l and '-EDI=0xaaaaaaaa' in l and '-ECX=0x0' in l and '-EAX=0xaaaaaa5a' in l for l in ls), r.stderr)
@@ -633,7 +656,7 @@ else:
             ls = lines(r)
             allv = r.stderr.splitlines()
             check('an int3: its own headline (not a fault), the registers of the Underground 2 log, and the code window labelled int3 with the cc at +0',
-                  ls and ls[0].startswith('[x86-fault] #1 a 32-bit guest executed int3 at guest 0x004405a9 (speed.exe+0x405a9), window 0x5000000000, 2 modules')
+                  ls and ls[0].startswith(f'[x86-fault] #1 a 32-bit guest executed int3 at guest 0x004405a9 (speed.exe+0x405a9), window 0x{win:x}, 2 modules')
                   and 'EAX=0x0 ECX=0x0 EDX=0x82804c EBX=0x6 ESI=0xaa EDI=0xa6a00c0 EBP=0x127fdf4 ESP=0x127fddc' in ls[0]
                   and not any('fault address minus' in l for l in ls)
                   and any(l.startswith('[x86-fault]   code int3 +0: cc ') for l in allv), r.stderr)

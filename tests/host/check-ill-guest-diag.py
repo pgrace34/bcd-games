@@ -102,37 +102,58 @@ MAIN = r'''
 static uint8_t *page(uint64_t at, size_t n)
 {
     mach_vm_address_t m = at;
-    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED) != KERN_SUCCESS) { puts("alloc-failed"); exit(3); }
+    kern_return_t kr = mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED);
+    if (kr != KERN_SUCCESS) { printf("alloc-failed %llx kr=%d\n", (unsigned long long)at, (int)kr); exit(3); }
     return (uint8_t *)m;
+}
+/* BCD (2026-10-29): where the guest and alias pages live: 0x6000000000 where a 16 GB span there is free (the owner's Mac: as
+ * before), else the first free 16 GB span, found with mach_vm_map and released again at once, so the pages around the ones
+ * placed stay unmapped (the "edge" scenario needs the 16 bytes before its block absent, "unmapped" a hole). On GitHub's
+ * macos-26 runner the fixed spans the harnesses used are taken (KERN_NO_SPACE); the engine's gate needs only a guest address
+ * past the first 64 KB and below 0x800000000000. */
+static uint64_t G;
+static void choose_home(void)
+{
+    mach_vm_address_t a = 0x6000000000ULL;
+    const vm_prot_t rw = VM_PROT_READ | VM_PROT_WRITE;
+    if (mach_vm_map(mach_task_self(), &a, 0x400000000ULL, 0, VM_FLAGS_FIXED, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
+        a = 0;
+        if (mach_vm_map(mach_task_self(), &a, 0x400000000ULL, 0, VM_FLAGS_ANYWHERE, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
+            puts("alloc-failed home"); exit(3);
+        }
+    }
+    mach_vm_deallocate(mach_task_self(), a, 0x400000000ULL);
+    G = a;
 }
 
 int main(int argc, char **argv)
 {
     const char *s = argc > 1 ? argv[1] : "";
-    uint8_t *g = page(0x6000000000ULL, 0x8000), *a = page(0x6100000000ULL, 0x8000);
-    /* the guest view: the block's address 0x6000001e0 sits 0x1e0 into the first page; bytes ramp 0,1,2,... so every row is checkable */
+    choose_home();
+    uint8_t *g = page(G, 0x8000), *a = page(G + 0x100000000ULL, 0x8000);
+    /* the guest view: the block's address G + 0x1e0 sits 0x1e0 into the first page; bytes ramp 0,1,2,... so every row is checkable */
     for (unsigned i = 0; i < 0x4000; i++) { g[i] = (uint8_t)i; a[i] = (uint8_t)i; }
-    g_guest_lo = 0x6000000000ULL; g_alias_lo = 0x6100000000ULL;
+    g_guest_lo = G; g_alias_lo = G + 0x100000000ULL;
     if (!strcmp(s, "plain")) {
         g_guest_lo = 0;                                                      /* no alias covers it */
-        ios_ill_guest_bytes(0x60000001e0ULL, 0x169ff84e8ULL);
+        ios_ill_guest_bytes(G + 0x1e0, 0x169ff84e8ULL);
     } else if (!strcmp(s, "same")) {
-        ios_ill_guest_bytes(0x60000001e0ULL, 0x169ff84e8ULL);
+        ios_ill_guest_bytes(G + 0x1e0, 0x169ff84e8ULL);
     } else if (!strcmp(s, "diff")) {
         a[0x1e0 + 5] = 0xff;                                                 /* the alias differs five bytes into the block */
-        ios_ill_guest_bytes(0x60000001e0ULL, 0x169ff84e8ULL);
+        ios_ill_guest_bytes(G + 0x1e0, 0x169ff84e8ULL);
     } else if (!strcmp(s, "diff-before")) {
         a[0x1e0 - 3] = 0xee;                                                 /* ...or three bytes before it */
-        ios_ill_guest_bytes(0x60000001e0ULL, 0x169ff84e8ULL);
+        ios_ill_guest_bytes(G + 0x1e0, 0x169ff84e8ULL);
     } else if (!strcmp(s, "edge")) {
         /* the block is at the very start of a mapped range: the 16 bytes before it are not there */
-        uint8_t *e = page(0x6300000000ULL, 0x4000);
+        uint8_t *e = page(G + 0x300000000ULL, 0x4000);
         for (unsigned i = 0; i < 0x4000; i++) e[i] = (uint8_t)(i + 1);
         g_guest_lo = 0;
-        ios_ill_guest_bytes(0x6300000000ULL, 0x169ff84e8ULL);
+        ios_ill_guest_bytes(G + 0x300000000ULL, 0x169ff84e8ULL);
     } else if (!strcmp(s, "cap")) {
         g_guest_lo = 0;
-        for (int i = 0; i < 5; i++) ios_ill_guest_bytes(0x60000001e0ULL, 0x169ff84e8ULL);
+        for (int i = 0; i < 5; i++) ios_ill_guest_bytes(G + 0x1e0, 0x169ff84e8ULL);
     } else if (!strcmp(s, "bad")) {
         ios_ill_guest_bytes(0, 0x169ff84e8ULL);
         ios_ill_guest_bytes(0x1000, 0x169ff84e8ULL);
@@ -142,7 +163,7 @@ int main(int argc, char **argv)
         puts("bad-done");
     } else if (!strcmp(s, "unmapped")) {
         g_guest_lo = 0;
-        ios_ill_guest_bytes(0x6f00000000ULL, 0x169ff84e8ULL);                  /* nothing there: all ?? */
+        ios_ill_guest_bytes(G + 0x380000000ULL, 0x169ff84e8ULL);              /* nothing there (inside the released span): all ?? */
     }
     return 0;
 }
