@@ -2220,6 +2220,12 @@ jobs:
               || echo "::warning::-downloadComponent unsupported on this Xcode"
           fi
 
+      # BCD (2026-10-30): Xcode 27.1's Metal compiler refuses the internal atomic builtin air_tessellation.metal used (five
+      # parameters now); upstream DXMT's public-API line is applied to the pin first (tools/patch-dxmt-tess-atomic.py), so the
+      # headers below and the DXMT build compile with Xcode 26 and 27 alike.
+      - name: Patch DXMT's tessellation shader for Xcode 27's Metal compiler
+        run: python3 tools/patch-dxmt-tess-atomic.py
+
       # build/dxmt-ios/shader-headers/ is gitignored and nothing generated it,
       # so airconv_context.cpp could not find air_msad.h / air_samplepos.h.
       # Mirrors the metalir + hexdump generators in dxmt/meson.build.
