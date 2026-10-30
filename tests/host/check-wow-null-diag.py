@@ -278,7 +278,7 @@ int main(int argc, char **argv)
         w.st.__x[24] = WIN + 0x20000; ios_wow_null_diag(&w.st, w.teb64, EXC_BAD_ACCESS, WIN + 0x20000);   /* not the NULL page */
         w.st.__x[24] = WIN + 0x10c;
         ios_wow_null_diag(&w.st, w.teb64, EXC_BAD_ACCESS, WIN + 0x10d);               /* x24 does not match the fault address */
-        w.st.__x[19] = 0x5000000010ULL; ios_wow_null_diag(&w.st, w.teb64, EXC_BAD_ACCESS, w.st.__x[19] + 0x10c); /* x19 not a window base */
+        w.st.__x[19] = WIN + 0x10; ios_wow_null_diag(&w.st, w.teb64, EXC_BAD_ACCESS, w.st.__x[19] + 0x10c);      /* x19 not a window base */
         w.st.__x[19] = WIN; w.st.__x[24] = WIN + 0x10c;
         w.st.__pc = 0x10000000ULL;                                                       /* a pc outside the pool */
         ios_wow_null_diag(&w.st, w.teb64, EXC_BAD_ACCESS, WIN + 0x10c);
@@ -294,7 +294,7 @@ int main(int argc, char **argv)
         ios_wow_null_diag_bus(&w.st, w.teb64, WIN + 0x10c);                               /* the BSD path: reports */
         w.st.__pc += 4;
         ios_wow_null_diag(&w.st, w.teb64, EXC_BAD_ACCESS, WIN + 0x10c);                   /* strict again: nothing */
-        w.st.__pc += 4; w.st.__x[19] = 0x5000000010ULL;
+        w.st.__pc += 4; w.st.__x[19] = WIN + 0x10;
         ios_wow_null_diag_bus(&w.st, w.teb64, w.st.__x[19] + 0x10c);                      /* the BSD path still needs a window base */
         w.st.__pc += 4; w.st.__x[19] = WIN;
         ios_wow_null_diag_bus(&w.st, w.teb64, WIN + 0x20000);                             /* ... and the NULL page */

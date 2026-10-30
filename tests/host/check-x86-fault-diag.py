@@ -472,9 +472,9 @@ int main(int argc, char **argv)
         return 0;
     }
     if (!strcmp(s, "benign")) {
-        ios_x86_fault_av(&w.st, w.teb64, BLOCK, 0x7000000000ULL + 0x1000, -1);                  /* an address outside this window */
+        ios_x86_fault_av(&w.st, w.teb64, BLOCK, WIN + 0x100000000ULL + 0x1000, -1);           /* an address outside this window (BCD 2026-10-30: just past it; the window moves per run) */
         ios_x86_fault_av(&w.st, w.teb64, 0x140001000ULL, WIN + 0xb514ab6a, -1);                   /* a 64-bit rip */
-        w.st.__x[19] = 0x5000000010ULL; ios_x86_fault_av(&w.st, w.teb64, BLOCK, WIN + 0x1000, -1);   /* x19 is no window base */
+        w.st.__x[19] = WIN + 0x10; ios_x86_fault_av(&w.st, w.teb64, BLOCK, WIN + 0x1000, -1);        /* x19 is no window base */
         w.st.__x[19] = 0; ios_x86_fault_av(&w.st, w.teb64, BLOCK, 0x1000, -1);
         w.st.__x[19] = WIN; w.st.__x[18] = 0;
         ios_x86_fault_av(&w.st, 0, BLOCK, WIN + 0xb514ab6a, -1);                                  /* no TEB (x18 and the lookup both empty) */

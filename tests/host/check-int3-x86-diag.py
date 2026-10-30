@@ -378,7 +378,7 @@ int main(int argc, char **argv)
     if (!strcmp(s, "benign")) {
         w = make(1);
         w.grip = 0x140001001ULL; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);                /* a 64-bit guest */
-        w.grip = EIP_INT3 + 1; w.st.__x[19] = 0x5000000010ULL; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);   /* x19 is no window base */
+        w.grip = EIP_INT3 + 1; w.st.__x[19] = WIN + 0x10; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);        /* x19 is no window base */
         w.st.__x[19] = 0; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);
         w.st.__x[19] = WIN; ios_int3_x86_diag(&w.st, 0, w.gregs, w.grip);                           /* no TEB */
         ios_int3_x86_diag(&w.st, w.teb64, NULL, w.grip);                                            /* no registers */
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
     }
     if (!strcmp(s, "x18-other-window")) {
         w = make(1);
-        w.st.__x[18] = 0x6000000000ULL + TEB64_G;        /* x18 in another window: the caller's TEB is used */
+        w.st.__x[18] = WIN + 0x100000000ULL + TEB64_G;  /* x18 in another window (the next one up): the caller's TEB is used */
         ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);
         return 0;
     }
