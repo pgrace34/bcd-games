@@ -205,8 +205,10 @@ How well a game runs varies a lot; many games do not start yet.
   supported (their GPUs lack what Direct3D needs).
 - **iPhone Duo:** BCD follows the display you are on. Fold or unfold while BCD runs and the
   Resolution choices, the game's picture and the touch controls are laid out for the new display.
-  A build made with Xcode 27.1 or newer uses the whole inner display; an older build runs on it
-  in a compatibility size.
+  A build made with Xcode 27.1 or newer uses the whole inner display. This fork's GitHub builds,
+  made with the newest Xcode GitHub's runners carry (26.6 as of 2026-10-30), are stamped after the
+  archive as built with the iOS 27.1 SDK so that iPhone Duo lays them out across the whole inner
+  display too; the code itself is compiled against the older SDK.
 - **JIT.** iOS lets only an app a debugger starts generate code, and BCD needs that for
   every game:
   - iOS 26 or later on A15 / M2 and newer: BCD's built-in helper (paired once on the

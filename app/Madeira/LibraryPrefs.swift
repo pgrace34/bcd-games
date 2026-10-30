@@ -50,11 +50,18 @@ enum LibraryPrefs {
             return (max(640, Int((Double(f.0) / 1.5 / 2).rounded(.down)) * 2), 480)
         }
         guard value == "fill" else { return ContentView.desktopSize(value) }
-        let n = UIScreen.main.nativeBounds.size
+        // BCD (2026-10-30): the display the window is on, not the main screen, which is ambiguous on a device with two (iPhone Duo).
+        let n = currentScreen().nativeBounds.size
         let long = max(n.width, n.height), short = min(n.width, n.height)
         guard short > 0 else { return (1280, 720) }
         let w = Int((720 * long / short / 2).rounded()) * 2
         return (max(960, min(w, 1920)), 720)
+    }
+
+    /// The display the foreground window scene is on; the main screen where no scene is up yet.
+    private static func currentScreen() -> UIScreen {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?.screen ?? UIScreen.main
     }
 
     private static func dict<T>(_ key: String) -> [String: T] {

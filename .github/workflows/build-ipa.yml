@@ -95,7 +95,7 @@ jobs:
         run: |
           v=$(xcrun --sdk iphoneos --show-sdk-version)
           if [ "$(printf '%s\n' 27.1 "$v" | sort -V | head -1)" != "27.1" ]; then
-            echo "::warning::iOS SDK $v is older than 27.1: on iPhone Duo this build keeps to the inner display's compatibility size"
+            echo "::warning::iOS SDK $v is older than 27.1: iPhone Duo would run this build centred on the inner display with empty space around it; the stamp after the archive asks for the 27.1 layout instead (BCD_DUO_SDK_STAMP)"
           else
             echo "::notice::iOS SDK $v: the build uses the whole iPhone Duo inner display"
           fi
@@ -4278,6 +4278,33 @@ jobs:
       # records the check to confirm it -- which was never actually run. Run it.
       # A binary that ships without these renders a black screen and says
       # nothing until the log is read, so surface it at build time.
+      # BCD (2026-10-30): iPhone Duo lays an app out by the SDK its executable says it was built with (LC_BUILD_VERSION's sdk):
+      # built with the iOS 26 SDK or earlier it runs centred on the inner display with empty space around it; with the iOS 27.1
+      # SDK it extends to the whole display (Apple, "Prepare your app for iPhone Duo"; there is no Info.plist switch). GitHub's
+      # runners carry no Xcode 27.1, so where the SDK is older this stamps the archived executable as 27.1 (vtool, the minimum
+      # iOS unchanged) and the Info.plist's DTSDKName and DTPlatformVersion with it. The code is still the one compiled against
+      # the older SDK: the stamp asks iOS for the 27.1 layout, and iOS also applies to it whatever it keys to apps linked on 27.1.
+      # Off with the repository variable BCD_DUO_SDK_STAMP=0; not run where the SDK is already 27.1 or newer, nor by the owner.
+      - name: Stamp the app as built with the iOS 27.1 SDK (iPhone Duo's whole inner display)
+        if: env.OTA_CONFIGURED != 'true' && vars.BCD_DUO_SDK_STAMP != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=build-out/Madeira.xcarchive/Products/Applications/Madeira.app
+          v=$(xcrun --sdk iphoneos --show-sdk-version)
+          if [ "$(printf '%s\n' 27.1 "$v" | sort -V | head -1)" = "27.1" ]; then
+            echo "::notice::iOS SDK $v: the app is built with 27.1 or newer, no stamp needed"; exit 0
+          fi
+          echo "-- before --"; xcrun vtool -show-build "$APP/Madeira" | sed -n '1,12p'
+          minos=$(xcrun vtool -show-build "$APP/Madeira" | awk '$1 == "minos" {print $2; exit}')
+          [ -n "$minos" ] || { echo "::error::no LC_BUILD_VERSION minos in $APP/Madeira"; exit 1; }
+          xcrun vtool -set-build-version ios "$minos" 27.1 -replace -output "$APP/Madeira.stamped" "$APP/Madeira"
+          mv -f "$APP/Madeira.stamped" "$APP/Madeira"
+          chmod 755 "$APP/Madeira"
+          /usr/libexec/PlistBuddy -c "Set :DTSDKName iphoneos27.1" -c "Set :DTPlatformVersion 27.1" "$APP/Info.plist"
+          echo "-- after --"; xcrun vtool -show-build "$APP/Madeira" | sed -n '1,12p'
+          echo "::notice::stamped as built with the iOS 27.1 SDK (minimum iOS $minos, code compiled against SDK $v): iPhone Duo lays the app out across the whole inner display"
+
       - name: Verify the macdrv symbols DXMT resolves at runtime
         shell: bash
         run: |
@@ -4386,8 +4413,11 @@ jobs:
             out again for the new display.
           - Settings › Graphics reads its resolution list as shown, not once at launch.
           - The Steam, Epic and GOG sign-in sheet follows the window's width class, not the kind of device.
-          - Built on macOS 26 with the newest stable Xcode installed; the Duo's whole inner display needs the iOS 27.1 SDK
-            (the build's log says which SDK it used).
+          - Built on macOS 26 with the newest stable Xcode GitHub's runners carry (the build's log says which SDK that was) and,
+            where that SDK is older than iOS 27.1, stamped as built with the iOS 27.1 SDK after the archive, so iPhone Duo lays
+            the app out across the whole inner display instead of centring it with empty space around it. The code itself was
+            compiled against the older SDK; iOS also applies to it whatever it keys to apps linked on 27.1. A build without the
+            stamp: set the repository variable BCD_DUO_SDK_STAMP to 0.
           NOTES
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" build-out/BCD.ipa --clobber --repo "$GITHUB_REPOSITORY"
