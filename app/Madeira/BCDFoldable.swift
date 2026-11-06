@@ -50,8 +50,9 @@ enum BCDFoldableDevice {
 /// The experimental switch: one string in UserDefaults, "1" on and "0" off.
 enum BCDFoldableSwitch {
     static let key = "bcd.foldable.support"
-    /// What no stored answer means. Off: see the header.
-    static let defaultOn = false
+    /// What no stored answer means. Off upstream (see the header); on in the BCD Duo fork (modified 2026-11-06), which is
+    /// built for this phone and tested on it.
+    static let defaultOn = true
 
     static func resolve(_ stored: String?) -> Bool {
         switch stored?.trimmingCharacters(in: .whitespaces) {

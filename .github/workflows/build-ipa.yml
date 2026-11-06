@@ -23,7 +23,8 @@ jobs:
   build:
     # madeira-bcd: runs only in the owner's repository; a fork's run is skipped.
     # BCD (2026-10-29): and in DanielTangnes/bcd-games, which publishes its unsigned IPA as a release (the step at the end).
-    if: github.repository == 'thebcd69/madeira-bcd' || github.repository == 'DanielTangnes/bcd-games'
+    # BCD Duo fork (modified 2026-11-06): and in pgrace34/bcd-games, the same way.
+    if: github.repository == 'thebcd69/madeira-bcd' || github.repository == 'DanielTangnes/bcd-games' || github.repository == 'pgrace34/bcd-games'
     # BCD (2026-10-30): GitHub's xcode-27 image (a preview: macOS 27, Xcode 27.1 as the default, 27.0 and the 27.2 release
     # candidate beside it, the iOS 27.1 SDK and the iPhone Duo simulator runtime; actions/runner-images#14404). An app built
     # with an SDK older than iOS 27.1 runs on iPhone Duo centred on the inner display with empty space around it (Apple,
@@ -4436,7 +4437,10 @@ jobs:
           BCD 0.1.$N, built by GitHub Actions from \`$GITHUB_REF_NAME\` at ${GITHUB_SHA:0:12}. Unsigned: install it with
           SideStore or AltStore, LiveContainer, or your own signing, as the README's Install section says.
 
-          Based on BCD 0.1.623 (thebcd69/bcd-games) with this branch's iPhone Duo changes:
+          An unofficial fork for iPhone Duo (pgrace34/bcd-games), not the official BCD. Includes work from BCD by thebcd69
+          (https://github.com/thebcd69/bcd-games) and DanielTangnes's iPhone Duo branch (https://github.com/DanielTangnes/bcd-games).
+
+          Based on BCD 0.1.630 with upstream's foldable support switched on by default, plus these iPhone Duo changes:
 
           - The display can change under the app without a restart (the Duo folds and unfolds; two apps share a display): the
             Resolution choices, the touch controls' window and the game surface follow it, and a built-in touch layout is laid
@@ -4451,7 +4455,7 @@ jobs:
             gh release delete "$TAG" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY"
           fi
           gh release create "$TAG" build-out/BCD.ipa --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "BCD 0.1.$N · iPhone Duo (unsigned)" --notes-file release-notes.md
+            --title "BCD Duo fork 0.1.$N (unsigned, unofficial)" --notes-file release-notes.md
           echo "::notice::release $TAG: BCD.ipa ($(du -h build-out/BCD.ipa | cut -f1)) on $GITHUB_REPOSITORY at ${GITHUB_SHA:0:12}"
           # The diagnose job's draft releases (failed-run-<run id>, each holding a failed run's job log) have served once a build
           # gets this far: clear them. Best effort; the release above is the deliverable.

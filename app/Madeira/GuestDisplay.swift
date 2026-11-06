@@ -191,11 +191,13 @@ enum ResolutionChoices {
     private static var storedScreen = firstScreen()
 
     private static func firstScreen() -> Screen {
-        #if canImport(UIKit)
         // BCD Duo fork (modified 2026-11-06): upstream's inner-display shape is the starting point on the foldable iPhone with
         // its switch on; after launch, refreshScreen (BCDDisplayLive.swift) follows the display the window is really on.
+        #if canImport(UIKit)
         if let inner = BCDFoldable.innerScreen { return Screen(points: inner.points, pixels: inner.pixels) }   // madeira-bcd foldable (experimental): the foldable iPhone with its switch on takes the inner display's shape (UIScreen.main is ambiguous there); nil, and nothing changes, everywhere else
-        return landscape(points: UIScreen.main.bounds.size, pixels: UIScreen.main.nativeBounds.size)
+        let b = UIScreen.main.bounds, n = UIScreen.main.nativeBounds
+        return Screen(points: CGSize(width: max(b.width, b.height), height: min(b.width, b.height)),
+                      pixels: CGSize(width: max(n.width, n.height), height: min(n.width, n.height)))
         #else
         // Hosts without UIKit (the host tests): an 11-inch iPad.
         return Screen(points: CGSize(width: 1180, height: 820), pixels: CGSize(width: 2360, height: 1640))

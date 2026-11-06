@@ -107,7 +107,7 @@ check("Settings › Graphics adds its group only on the foldable model, after th
                 r"            if backend\.restartNeeded \{ BCDSettingsNotice\(text: bcdSettingsRestartNote\) \}\n", sections) is not None
       and "var displaySwitchesShown: Bool { get }" in sections)
 check("the gate is read once per run and holds the model and the switch", "static let active: Bool = BCDFoldableSwitch.gate(machine: BCDFoldableDevice.machine, stored: BCDFoldableSwitch.stored)" in pure)
-check("the switch is off by default", "static let defaultOn = false" in pure)
+check("the switch is on by default in the BCD Duo fork (upstream: off)", "static let defaultOn = true" in pure)
 check("the model table has the one identifier", 'static let identifiers: [String] = ["iPhone19,4"]' in pure)
 check("the pure part needs no UIKit, no engine type and no logging", not re.search(r"import UIKit|import SwiftUI|LogStore|MadeiraConfig|LibraryModel|fputs|print\(", pure))
 check("the switch row keeps its answer in UserDefaults, not in bcd.cfg (no catalog entry is needed)",
