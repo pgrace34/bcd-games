@@ -27,3 +27,19 @@ struct BCDFoldableSettingsRow: View {
         return on == BCDFoldable.active ? base : base + " Applies the next time BCD starts."
     }
 }
+
+/// BCD Duo fork (added 2026-11-06): Settings › Graphics › Foldable iPhone, the split screen (BCDDuoSplit, BCDFoldable.swift). It applies
+/// at once: the game view and the touch overlay read it on their next layout pass.
+struct BCDDuoSplitSettingsRow: View {
+    @State private var on = BCDDuoSplit.on
+
+    var body: some View {
+        BCDSettingsToggleRow(id: BCDSettingsID.control(.graphics, "duo-split"), title: "Split screen when held upright",
+                             note: "With the inner screen open and held upright, the game takes the top half and the touch controls "
+                                + "the bottom half. Folded, or turned sideways, the game has the whole screen.", isOn: on) { value in
+            BCDDuoSplit.store(value)
+            on = value
+            fputs("[foldable] split screen \(value ? "on" : "off")\n", stderr)
+        }
+    }
+}

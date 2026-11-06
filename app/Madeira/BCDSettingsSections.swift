@@ -258,7 +258,7 @@ struct BCDGraphicsSettings<Backend: BCDGraphicsBackend>: View {
                 }
             }
             if BCDFoldableDevice.isThisDevice {   // madeira-bcd foldable (experimental, BCDFoldable.swift): the foldable iPhone's Settings only; every other device's Graphics page is unchanged
-                BCDSettingsGroup(title: "Foldable iPhone") { BCDFoldableSettingsRow() }
+                BCDSettingsGroup(title: "Foldable iPhone") { BCDFoldableSettingsRow(); BCDDuoSplitSettingsRow() }   // BCD Duo fork (modified 2026-11-06): the split screen's switch
             }
             if backend.restartNeeded { BCDSettingsNotice(text: bcdSettingsRestartNote) }
             BCDSettingsGroup {

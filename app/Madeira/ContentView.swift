@@ -230,9 +230,16 @@ final class MetalBackedView: UIView {
     /// window-level host view gets THIS frame, not our full bounds, and touch
     /// mapping uses the same rect, so letterboxing, cropping and stretching
     /// never skew input.
+    /// BCD Duo fork (modified 2026-11-06): where the picture goes: the whole view, or its top half when the inner display is held
+    /// upright and the split screen is on (BCDDuoSplit, BCDFoldable.swift). Touch mapping and the compositor use the same rect.
+    private var layoutBounds: CGRect {
+        BCDDuoSplit.applies(active: BCDFoldable.active, on: BCDDuoSplit.on, session: LibraryModel.shared.current != nil,
+                            width: Double(bounds.width), height: Double(bounds.height)) ? BCDDuoSplit.gameRect(bounds) : bounds
+    }
+
     private func gameRect() -> CGRect {
         let r = GameSurfaceLayout.rect(guest: guestSize(), aspect: drawableAspect(),
-                                       bounds: bounds, mode: effectiveDisplayMode())
+                                       bounds: layoutBounds, mode: effectiveDisplayMode())
         let base = CGRect(x: r.minX, y: r.minY, width: max(r.width, 1), height: max(r.height, 1))
         return BCDMagnifierCurrent.state.rect(base: base)   // madeira-bcd (round 604): the magnifier; at 1x (the default) this is `base` itself
     }
@@ -309,7 +316,7 @@ final class MetalBackedView: UIView {
         // S2 desktop mode: the winios compositor renders the wine virtual
         // desktop aspect-fit inside THIS placeholder's area, exactly like
         // the games' Metal layer — never over the whole phone screen.
-        let full = convert(bounds, to: w)
+        let full = convert(layoutBounds, to: w)   // BCD Duo fork (modified 2026-11-06): the top half in the split screen
         winios_set_compositor_frame(full.minX, full.minY, full.width, full.height)
         if !Self.layerRegistered {
             Self.layerRegistered = true
@@ -327,7 +334,7 @@ final class MetalBackedView: UIView {
         super.layoutSubviews()
         if let w = window {
             applyDisplayMode(reason: "layout")
-            let full = convert(bounds, to: w)
+            let full = convert(layoutBounds, to: w)   // BCD Duo fork (modified 2026-11-06): the top half in the split screen
             winios_set_compositor_frame(full.minX, full.minY, full.width, full.height)
             if BCDFoldable.active { BCDFoldableLive.layoutPass(self, in: w) }   // madeira-bcd foldable (experimental, BCDFoldableLive.swift): only on the foldable iPhone with its switch on; re-frames the control window when the scene's size changes without a rotation
         }
@@ -355,10 +362,10 @@ final class MetalBackedView: UIView {
         var p = p
         if BCDMagnifierCurrent.state.isOn {   // madeira-bcd (round 604): the finger is over the enlarged picture; map it as the picture at 1x would be
             p = BCDMagnifierCurrent.state.unzoom(point: p, base: GameSurfaceLayout.rect(guest: guestSize(), aspect: drawableAspect(),
-                                                                                       bounds: bounds, mode: effectiveDisplayMode()))
+                                                                                       bounds: layoutBounds, mode: effectiveDisplayMode()))
         }
         let g = GameSurfaceLayout.map(point: p, guest: guestSize(), aspect: drawableAspect(),
-                                      bounds: bounds, mode: effectiveDisplayMode())
+                                      bounds: layoutBounds, mode: effectiveDisplayMode())
         return (Int32(g.x), Int32(g.y))
     }
 
@@ -2863,6 +2870,12 @@ final class ControlsWindow: UIWindow {
                 library.performanceRect.contains(point) {   // the HUD's frame is zero except while the player moves it (BCDHUDHost)
                 return super.hitTest(point, with: event)
             }
+            // BCD Duo fork (modified 2026-11-06): in the split screen the bottom half is the controller's (every touch there is the
+            // overlay's, so none reaches the picture's edge), and the top half is the game's.
+            if BCDDuoSplit.applies(active: BCDFoldable.active, on: BCDDuoSplit.on, session: true,
+                                   width: Double(bounds.width), height: Double(bounds.height)) {
+                return BCDDuoSplit.padRect(bounds).contains(point) ? super.hitTest(point, with: event) : nil
+            }
             guard m.hitsInteractive(point, in: bounds, topBar: false) else { return nil }
             return super.hitTest(point, with: event)
         }
@@ -2913,6 +2926,32 @@ enum TouchControlsHost {
     }
 }
 
+/// BCD Duo fork (added 2026-11-06): the controller half of the split screen (BCDDuoSplit, BCDFoldable.swift). A dark deck below the
+/// picture with the touch controls laid out on it; the controls' places are fractions of the deck, which has the shape of the inner
+/// display in landscape, so a layout made for that reads the same here. The deck takes every touch in its half (ControlsWindow).
+struct BCDDuoSplitDeck<Controls: View>: View {
+    let pad: CGRect
+    let showsControls: Bool
+    @ViewBuilder let controls: () -> Controls
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle().fill(Color(white: 0.06))
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+            if showsControls {
+                controls()
+            } else {
+                Text("Touch controls are off. Turn them on from the in-game menu, or turn the split screen off in Settings › Graphics.")
+                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .padding(24).frame(width: pad.width, height: pad.height)
+            }
+        }
+        .frame(width: pad.width, height: pad.height, alignment: .topLeading)
+        .padding(.top, pad.minY)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
 struct TouchControlsOverlay: View {
     @ObservedObject private var m = TouchControlsModel.shared
     @ObservedObject private var library = LibraryModel.shared
@@ -2927,9 +2966,18 @@ struct TouchControlsOverlay: View {
             // bar; the controls hide while its menu or starting screen is up.
             let session = library.current != nil
             let landscape = geo.size.width > geo.size.height || session
+            // BCD Duo fork (modified 2026-11-06): the inner display upright, a game running: the controls below the picture.
+            let split = BCDDuoSplit.applies(active: BCDFoldable.active, on: BCDDuoSplit.on, session: session,
+                                            width: Double(geo.size.width), height: Double(geo.size.height))
+            let pad = BCDDuoSplit.padRect(CGRect(origin: .zero, size: geo.size))
             ZStack(alignment: .top) {
-                if landscape {
-                    if (m.visible || m.editing) && !library.blocksGameplayTouch {
+                if split || landscape {
+                    if split {
+                        BCDDuoSplitDeck(pad: pad, showsControls: (m.visible || m.editing) && !library.blocksGameplayTouch) {
+                            controls(pad.size, session: session)
+                                .opacity(m.editing ? 1.0 : m.opacity)
+                        }
+                    } else if (m.visible || m.editing) && !library.blocksGameplayTouch {
                         if !feel.hidden {   // madeira-bcd (round 604): hidden for want of a touch, the controls have no view at all
                             controls(geo.size, session: session)
                                 .opacity(m.editing ? 1.0 : m.opacity)

@@ -80,7 +80,8 @@ for path in sorted(APP.rglob("*")):
     if path.suffix not in (".swift", ".m", ".mm", ".c", ".h") or path.name in ("BCDFoldable.swift", "BCDFoldableLive.swift", "BCDFoldableSettings.swift", "BCDFoldableUI.swift"):
         continue
     for n, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        if names.search(line):
+        # BCD Duo fork (modified 2026-11-06): the split screen's own lines (BCDDuoSplit) are the fork's, counted below.
+        if names.search(line) and ("BCDDuoSplit" not in line or "BCDFoldableSettingsRow" in line):
             where.setdefault(path.name, []).append(line.strip())
 check("only three files outside the new ones mention it: ContentView (two lines), GuestDisplay and BCDSettingsSections, one hook each",
       {k: len(v) for k, v in where.items()} == {"ContentView.swift": 2, "GuestDisplay.swift": 1, "BCDSettingsSections.swift": 2}, where)
@@ -91,7 +92,12 @@ check("the game view's hook tests the gate first and sits at the end of the layo
       and content.count("BCDFoldableLive.layoutPass") == 1)
 check("... and the rest of that layout pass is as it was",
       "    override func layoutSubviews() {\n        super.layoutSubviews()\n        if let w = window {\n            applyDisplayMode(reason: \"layout\")\n"
-      "            let full = convert(bounds, to: w)\n" in content)
+      "            let full = convert(layoutBounds, to: w)   // BCD Duo fork (modified 2026-11-06): the top half in the split screen\n" in content)
+# BCD Duo fork (2026-11-06): the split screen. The game view, its touch mapping and the overlay read one rule (BCDDuoSplit).
+split_uses = re.findall(r"BCDDuoSplit\.applies\(active: BCDFoldable\.active, on: BCDDuoSplit\.on", content)
+check("the split screen: the game view and the overlay ask BCDDuoSplit.applies behind the foldable gate (three places)", len(split_uses) == 3, len(split_uses))
+check("the split screen: the picture's rect drives the layer, the compositor and touch mapping alike",
+      content.count("bounds: layoutBounds") == 3 and content.count("convert(layoutBounds, to: w)") == 2)
 check("the root hook is one modifier on the root Group, before the navigation title; the lines around it are as they were",
       re.search(r"startDock: \{ startDock\(\$0, compactPool: \$1\) \}\)\n                \}\n            \}\n            \.modifier\(BCDFoldableWatch\(\)\)[^\n]*\n            \.navigationTitle\(\"BCD\"\)", content) is not None
       and content.count("BCDFoldableWatch()") == 1)
@@ -103,7 +109,7 @@ check("the Resolution screen's hook is the first line of its UIKit branch, nil o
       and "static func screen(active: Bool) -> (points: CGSize, pixels: CGSize)? {\n        active ? (innerPoints, innerPixels) : nil" in pure)
 sections = (APP / "BCDSettingsSections.swift").read_text()
 check("Settings › Graphics adds its group only on the foldable model, after the Display group and before the restart note",
-      re.search(r"\n            if BCDFoldableDevice\.isThisDevice \{[^\n]*\n                BCDSettingsGroup\(title: \"Foldable iPhone\"\) \{ BCDFoldableSettingsRow\(\) \}\n            \}\n"
+      re.search(r"\n            if BCDFoldableDevice\.isThisDevice \{[^\n]*\n                BCDSettingsGroup\(title: \"Foldable iPhone\"\) \{ BCDFoldableSettingsRow\(\)(?:; BCDDuoSplitSettingsRow\(\))? \}[^\n]*\n            \}\n"
                 r"            if backend\.restartNeeded \{ BCDSettingsNotice\(text: bcdSettingsRestartNote\) \}\n", sections) is not None
       and "var displaySwitchesShown: Bool { get }" in sections)
 check("the gate is read once per run and holds the model and the switch", "static let active: Bool = BCDFoldableSwitch.gate(machine: BCDFoldableDevice.machine, stored: BCDFoldableSwitch.stored)" in pure)

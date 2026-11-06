@@ -167,3 +167,44 @@ struct BCDFoldableTracker {
         return "[foldable] \(what): now \(now.text) (aspect \(String(format: "%.2f", now.aspect))) change=\(changes)\(extra.isEmpty ? "" : " " + extra)"
     }
 }
+
+/// BCD Duo fork (added 2026-11-06): the split screen. On the inner display held upright (portrait, 626 to 669 points wide), a
+/// game's picture takes the top half and the touch controls the bottom half, like a handheld with its screen above the buttons.
+/// MetalBackedView lays the picture out in `gameRect`, the touch overlay draws the controls in `padRect` (ContentView.swift).
+/// Off the foldable gate, outside a game, in landscape or on the cover display (466 points wide upright) nothing changes.
+/// The switch is read on every layout pass, so turning it off or on applies at the next one.
+enum BCDDuoSplit {
+    static let key = "bcd.duo.split"
+    /// On: the fork is for this phone, and nothing changes unless it is held upright with the inner display open.
+    static let defaultOn = true
+    /// The narrowest window that splits: the inner display upright is 626 to 669 points wide, the cover display 466.
+    static let minimumWidth = 600.0
+
+    static func resolve(_ stored: String?) -> Bool {
+        switch stored?.trimmingCharacters(in: .whitespaces) {
+        case "1": return true
+        case "0": return false
+        default: return defaultOn
+        }
+    }
+    static var stored: String? { UserDefaults.standard.string(forKey: key) }
+    static func store(_ on: Bool) { UserDefaults.standard.set(on ? "1" : "0", forKey: key) }
+    static var on: Bool { resolve(stored) }
+
+    /// Whether a window `width` x `height` points splits: the foldable gate open, the switch on, a game running, held upright
+    /// on the inner display.
+    static func applies(active: Bool, on: Bool, session: Bool, width: Double, height: Double) -> Bool {
+        active && on && session && height > width && width >= minimumWidth
+    }
+
+    /// The picture's part of `bounds`: the top half.
+    static func gameRect(_ bounds: CGRect) -> CGRect {
+        CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: (bounds.height / 2).rounded(.down))
+    }
+
+    /// The controls' part of `bounds`: the rest, below the picture.
+    static func padRect(_ bounds: CGRect) -> CGRect {
+        let top = gameRect(bounds).height
+        return CGRect(x: bounds.minX, y: bounds.minY + top, width: bounds.width, height: bounds.height - top)
+    }
+}
