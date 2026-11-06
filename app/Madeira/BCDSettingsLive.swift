@@ -1176,6 +1176,7 @@ struct BCDLiveSwitch {
 struct BCDAboutCreditsLive: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            BCDDuoForkCredit()   // BCD Duo fork (modified 2026-11-06): the fork says what it is before BCD's own credit
             BCDCreditLink(id: "credit.bcd", link: URL(string: "https://github.com/thebcd69/bcd-games")) {
                 BCDCredit()
             }

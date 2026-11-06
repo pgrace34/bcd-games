@@ -2223,6 +2223,23 @@ struct BCDCredit: View {
     }
 }
 
+/// BCD Duo fork (added 2026-11-06): Settings › About says first that this app is an unofficial fork, not the official
+/// BCD (LICENSE-BCD.md section 4: a modified version is not presented as the official BCD), and whose Duo work it carries.
+struct BCDDuoForkCredit: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("BCD Duo (unofficial fork)").font(.body.weight(.semibold))
+            Text("A modified version of BCD for iPhone Duo, not the official BCD: report problems with this build to the fork, not to BCD's developers. It carries DanielTangnes's iPhone Duo changes.")
+                .font(.subheadline).foregroundStyle(.secondary)
+            if let url = URL(string: "https://github.com/pgrace34/bcd-games") {
+                Link("github.com/pgrace34/bcd-games", destination: url).font(.subheadline)
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// One row of Settings › Credits: a person, their GitHub account and what they did.
 struct MadeiraCredit: View {
     let name: String
