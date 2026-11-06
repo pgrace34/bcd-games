@@ -2,7 +2,8 @@ name: Publish AltStore source
 
 on:
   push:
-    branches: [main]
+    # BCD Duo fork (modified 2026-11-06): the fork's branch too; its builds also dispatch this workflow.
+    branches: [main, iphone-duo]
     paths:
       - .github/workflows/altsource.yml
       - tools/update-altsource.py
@@ -32,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+          ref: ${{ (github.event_name == 'pull_request' || github.repository != 'thebcd69/bcd-games') && github.ref || 'main' }}
           persist-credentials: false
           sparse-checkout: |
             tools
@@ -45,7 +46,8 @@ jobs:
 
   build:
     needs: check
-    if: github.repository == 'thebcd69/bcd-games' && github.event_name != 'pull_request'
+    # BCD Duo fork (modified 2026-11-06): and pgrace34/bcd-games, whose source lists its own releases (BCD_SOURCE_REPO).
+    if: (github.repository == 'thebcd69/bcd-games' || github.repository == 'pgrace34/bcd-games') && github.event_name != 'pull_request'
     runs-on: macos-15
     timeout-minutes: 15
     outputs:
@@ -53,7 +55,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ github.repository == 'thebcd69/bcd-games' && 'main' || github.ref }}
           persist-credentials: false
           sparse-checkout: tools
       - uses: actions/setup-python@v6
@@ -63,6 +65,7 @@ jobs:
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
+          BCD_SOURCE_REPO: ${{ github.repository }}
         run: python3 tools/update-altsource.py
       - name: Upload Pages files
         if: steps.source.outputs.changed == 'true'

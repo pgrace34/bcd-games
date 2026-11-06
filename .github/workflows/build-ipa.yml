@@ -38,7 +38,8 @@ jobs:
     # Nothing in this job creates, edits or pushes anything.
     permissions:
       contents: write
-      actions: read
+      # BCD Duo fork (modified 2026-11-06): write, so a fork's build can dispatch its AltStore source (the step after the release).
+      actions: write
     timeout-minutes: 360
     # BCD (2026-10-29): "true" where the owner's private bucket is configured (its repository), "false" in a fork, which has
     # none of the secrets. The OTA steps run only in the first case; the second publishes the unsigned IPA as a release.
@@ -4465,6 +4466,14 @@ jobs:
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" >/dev/null && echo "removed the draft release $tag" \
               || echo "::warning::could not remove the draft release $tag"
           done
+
+      # BCD Duo fork (2026-11-06): the new release reaches SideStore through the fork's source (altsource.yml), which this
+      # dispatches at once instead of waiting for its hourly run. Best effort: the release above is the deliverable.
+      - name: Refresh the fork's AltStore/SideStore source
+        if: env.OTA_CONFIGURED != 'true' && github.repository == 'pgrace34/bcd-games'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run altsource.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" || echo "::warning::could not dispatch altsource.yml; its hourly run will publish the release"
 
       # Full logs as an artifact -- the annotations above are truncated, and
       # digging them out of the raw job log is painful.

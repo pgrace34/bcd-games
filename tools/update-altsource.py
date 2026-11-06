@@ -19,8 +19,12 @@ from urllib.request import Request, urlopen
 import zipfile
 
 
-UPSTREAM = "thebcd69/bcd-games"
-SOURCE_URL = "https://thebcd69.github.io/bcd-games/"
+# BCD Duo fork (modified 2026-11-06): BCD_SOURCE_REPO names the repository whose releases the source lists (its owner's
+# GitHub Pages serve it). Unset, everything is upstream's, as before.
+UPSTREAM = os.environ.get("BCD_SOURCE_REPO") or "thebcd69/bcd-games"
+OFFICIAL = UPSTREAM == "thebcd69/bcd-games"
+_OWNER, _REPO = UPSTREAM.split("/", 1)
+SOURCE_URL = f"https://{_OWNER.lower()}.github.io/{_REPO}/"
 API_URL = f"https://api.github.com/repos/{UPSTREAM}/releases/latest"
 
 
@@ -109,6 +113,8 @@ def make_source(state, info, permissions):
         "size": asset["size"],
         "minOSVersion": info["MinimumOSVersion"],
     }
+    if not OFFICIAL:
+        return fork_source(version, info, permissions, icon_url)
     return {
         "name": "BCD",
         "identifier": "io.github.thebcd69.bcd-games",
@@ -130,6 +136,39 @@ def make_source(state, info, permissions):
                 "BCD runs Windows games on iPhone and iPad. "
                 "It requires iOS 18 or later and JIT. Installation and game compatibility "
                 f"information: https://github.com/{UPSTREAM}"
+            ),
+            "iconURL": icon_url,
+            "category": "games",
+            "versions": [version],
+            "appPermissions": permissions,
+        }],
+        "news": [],
+    }
+
+
+def fork_source(version, info, permissions, icon_url):
+    """BCD Duo fork (2026-11-06): the same source, named as the unofficial fork it is (LICENSE-BCD.md: a modified
+    version is not presented as the official BCD)."""
+    return {
+        "name": "BCD Duo (unofficial fork)",
+        "identifier": f"io.github.{_OWNER.lower()}.{_REPO}",
+        "sourceURL": SOURCE_URL + "source.json",
+        "subtitle": "An unofficial iPhone Duo build of BCD",
+        "description": (
+            f"An unofficial fork of BCD for iPhone Duo, built from https://github.com/{UPSTREAM}. "
+            "Includes work from BCD by thebcd69 (https://github.com/thebcd69/bcd-games). "
+            "Not the official BCD: report problems with this build to the fork, not to BCD."
+        ),
+        "website": f"https://github.com/{UPSTREAM}",
+        "iconURL": icon_url,
+        "apps": [{
+            "name": "BCD Duo",
+            "bundleIdentifier": info["CFBundleIdentifier"],
+            "developerName": f"{_OWNER} (fork of BCD by thebcd69)",
+            "subtitle": "Unofficial iPhone Duo build of BCD",
+            "localizedDescription": (
+                "An unofficial fork of BCD for iPhone Duo. Includes work from BCD by thebcd69 "
+                f"(https://github.com/thebcd69/bcd-games). Source and releases: https://github.com/{UPSTREAM}"
             ),
             "iconURL": icon_url,
             "category": "games",
@@ -174,16 +213,20 @@ def main():
     for filename, value in (("source.json", source), ("state.json", state)):
         (site / filename).write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n")
     (site / ".nojekyll").touch()
+    title = "BCD AltStore Source" if OFFICIAL else "BCD Duo (unofficial fork) AltStore Source"
+    about = ("The latest stable BCD release by thebcd69." if OFFICIAL else
+             f"An unofficial iPhone Duo fork of BCD, built from {UPSTREAM}. "
+             "Includes work from BCD by thebcd69 (https://github.com/thebcd69/bcd-games). Not the official BCD.")
     (site / "index.html").write_text(
         '<!doctype html><html lang="en"><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>BCD AltStore Source</title><main><h1>BCD AltStore Source</h1>'
-        '<p>The latest stable BCD release by thebcd69.</p>'
+        f'<title>{title}</title><main><h1>{title}</h1>'
+        f'<p>{about}</p>'
         '<p>Add this URL in AltStore Classic or SideStore:</p>'
         f'<p><a href="source.json">{SOURCE_URL}source.json</a></p>'
         f'<p><a href="altstore://source?url={quote(SOURCE_URL + "source.json", safe="")}">Add to AltStore</a></p>'
         f'<p><a href="sidestore://source?url={quote(SOURCE_URL + "source.json", safe="")}">Add to SideStore</a></p>'
-        f'<p><a href="https://github.com/{UPSTREAM}/releases">Official BCD releases</a></p>'
+        f'<p><a href="https://github.com/{UPSTREAM}/releases">{"Official BCD" if OFFICIAL else "This fork\'s"} releases</a></p>'
         '<p>Checks for stable releases hourly. IPA files download directly from GitHub.</p></main>\n'
     )
     print(f"Generated BCD {info['CFBundleShortVersionString']} ({info['CFBundleVersion']})")
