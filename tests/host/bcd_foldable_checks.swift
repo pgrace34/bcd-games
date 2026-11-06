@@ -21,13 +21,15 @@ func check(_ what: String, _ ok: Bool, _ detail: String = "") {
         // ---------------------------------------------------------------- the gate: model AND switch
         check("the foldable model's identifier is iPhone19,4 and no other", BCDFoldableDevice.identifiers == ["iPhone19,4"])
         check("the model is recognised", BCDFoldableDevice.isFoldable(machine: "iPhone19,4"))
-        check("the switch is off when nothing is stored (the default)", !BCDFoldableSwitch.defaultOn && !BCDFoldableSwitch.resolve(nil))
+        // BCD Duo fork (modified 2026-11-06): the switch is on by default in the fork; 0 still turns it off.
+        check("the switch is on when nothing is stored (the fork's default)", BCDFoldableSwitch.defaultOn && BCDFoldableSwitch.resolve(nil))
         check("only 1 turns it on and only 0 turns it off", BCDFoldableSwitch.resolve("1") && BCDFoldableSwitch.resolve(" 1 ")
               && !BCDFoldableSwitch.resolve("0") && !BCDFoldableSwitch.resolve(" 0\n"))
-        check("any other answer is the default (off)", ["", "true", "yes", "on", "2", "-1", "01", "1.0", "\u{FF11}"].allSatisfy { !BCDFoldableSwitch.resolve($0) })
+        check("any other answer is the default (on in the fork)", ["", "true", "yes", "on", "2", "-1", "01", "1.0", "\u{FF11}"].allSatisfy { BCDFoldableSwitch.resolve($0) })
         check("the foldable model with its switch on opens the gate", BCDFoldableSwitch.gate(machine: "iPhone19,4", stored: "1"))
-        check("the foldable model with its switch off, stored 0, unset or garbled keeps it shut",
-              ["0", nil, "", "maybe", "true"].allSatisfy { !BCDFoldableSwitch.gate(machine: "iPhone19,4", stored: $0) })
+        check("the foldable model with its switch stored 0 keeps it shut; unset or garbled opens it (the fork's default)",
+              !BCDFoldableSwitch.gate(machine: "iPhone19,4", stored: "0")
+              && [nil, "", "maybe", "true"].allSatisfy { BCDFoldableSwitch.gate(machine: "iPhone19,4", stored: $0) })
 
         // A different model identifier: nothing new runs, whatever the switch holds.
         var others: [String] = []

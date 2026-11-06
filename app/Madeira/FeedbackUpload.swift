@@ -73,6 +73,10 @@ enum FeedbackUpload {
     /// Sends one message; `done` runs on the main queue with the intake's code. `log` is the code
     /// LogUpload.send gave a log sent with it.
     static func send(kind: String, text: String, log: String? = nil, done: @escaping (Result<String, Error>) -> Void) {
+        // BCD Duo fork (modified 2026-11-06): not sent to BCD's intake from an unofficial build (BCDDuoForkNoUpload, LogUpload.swift).
+        LogStore.shared.log("[bcd-feedback] not sent: this is the unofficial BCD Duo fork")
+        DispatchQueue.main.async { done(.failure(BCDDuoForkNoUpload())) }
+        return
         func finish(_ r: Result<String, Error>) {
             switch r {
             case .success(let code): LogStore.shared.log("[bcd-feedback] sent: code \(code)")

@@ -23,6 +23,14 @@ import Foundation
 import SwiftUI
 import UIKit
 
+/// BCD Duo fork (2026-11-06): what Send Log and Feedback answer in this build.
+struct BCDDuoForkNoUpload: LocalizedError {
+    var errorDescription: String? {
+        "This is the unofficial BCD Duo build, so logs are not sent to BCD's developers. Use Share logs in the in-game menu, "
+            + "or find bcd-log.txt in Files › On My iPhone › BCD Duo, and send it to the fork (github.com/pgrace34/bcd-games)."
+    }
+}
+
 enum LogUpload {
     static let endpoint = URL(string: "https://bcd.bcd-logs.workers.dev/v1/logs")!
     /// A screenshot sent with a log (2026-10-25): its own route, JPEG only, 160 KB at most (bcd-logs/worker/worker.js). What goes is a small
@@ -108,6 +116,11 @@ enum LogUpload {
     /// intake's code.
     static func send(_ log: URL, game: String, comment: String? = nil,
                      progress: ((String) -> Void)? = nil, done: ((Result<String, Error>) -> Void)? = nil) {
+        // BCD Duo fork (modified 2026-11-06): an unofficial build's logs are not BCD's to receive, so nothing is uploaded; the
+        // player is told where the log is instead. The intake code below is kept as upstream's.
+        LogStore.shared.log("[bcd-logs] not sent: this is the unofficial BCD Duo fork (\(log.lastPathComponent) stays on the phone)")
+        DispatchQueue.main.async { done?(.failure(BCDDuoForkNoUpload())) }
+        return
         func finish(_ r: Result<String, Error>) {
             switch r {
             case .success(let code):

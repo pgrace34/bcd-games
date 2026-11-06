@@ -747,6 +747,9 @@ final class LibraryModel: ObservableObject {
     /// madeira-bcd (round 579, BCD Dock): the library itself ended the session because the game's last process ended
     /// with an error status and nothing of it was left (watchDockGameEnd); nothing is asked again.
     private var endedByDockGame = false
+    /// BCD Duo fork (2026-11-06): after the player's Quit, when the game last presented a frame (watchQuitStall).
+    private var quitStillSince: Date?
+    private var quitLastPresents: UInt64 = 0
     /// madeira-bcd (round 624, agent D2 S3 and S7): the Windows desktop's exit watch (watchDesktopExits, DesktopExitRules). The `after`
     /// of the engine's table of ended processes (nil: not a desktop session), the pool's refusals when the session began, the
     /// programs already named, the lines written, and the notices waiting for the session line.
@@ -1221,6 +1224,7 @@ final class LibraryModel: ObservableObject {
     func begin(_ entry: LibraryEntry, remember: Bool = true, dock: DockGame? = nil) {
         wine_exit_status_reset()
         quitRequested = false
+        quitStillSince = nil; quitLastPresents = 0   // BCD Duo fork (modified 2026-11-06): watchQuitStall
         endedByWatch = nil; endWatchNote = ""
         endedByDockGame = false; dockEndNote = ""; dockFailedAt = nil; endedByDockFailure = nil; endedByDockShortExit = nil
         // round 624 (agent D2 S3/S7): only what ends after this moment, only on the Windows desktop
@@ -1522,7 +1526,31 @@ final class LibraryModel: ObservableObject {
     /// (c0000005 ...), nothing of it runs, the grace time has passed and the host finished. The session then ends as any
     /// other does: finish() shows the library with the exit report (the game's status) and hands the status to
     /// auto-tune. Off: env.MADEIRA_DOCK_GAME_END = 0; env.MADEIRA_DOCK_GAME_END_GRACE = seconds (default 10).
+    /// BCD Duo fork (2026-11-06, Graveyard Keeper 2 on iPhone Duo): the player chose Quit game, the game closed its window and stopped
+    /// drawing, but its process never finished exiting (threads parked forever in Unity's shutdown), so the engine kept counting it as
+    /// running, watchDockGameEnd never had a verdict and the session sat on the last frame until BCD was swiped away. After the
+    /// player's Quit, a Dock session in which no frame has been presented for `quitStallSeconds` ends as the player's quit
+    /// (wine_session_dock_game_quit: not a crash status). A game that asks "save before quitting?" keeps drawing its dialog, so it is
+    /// never ended under it. Off: env.MADEIRA_DUO_QUIT_STALL = 0.
+    static let quitStallSeconds = 30.0
+    private func watchQuitStall() -> Bool {
+        guard quitRequested, !endedByDockGame, DockStartScreen.shared.active,
+              MadeiraConfig.get("env.MADEIRA_DUO_QUIT_STALL")?.trimmingCharacters(in: .whitespaces) != "0" else { return false }
+        let presents = madeira_get_present_count()
+        guard let still = quitStillSince, presents == quitLastPresents else {
+            quitLastPresents = presents
+            quitStillSince = Date()
+            return false
+        }
+        guard Date().timeIntervalSince(still) >= Self.quitStallSeconds else { return false }
+        endedByDockGame = true
+        LogStore.shared.log("[duo-quit] the player asked to close and nothing was drawn for \(Int(Self.quitStallSeconds)) s, but the game has not finished closing: ending the session")
+        DispatchQueue.global(qos: .userInitiated).async { _ = wine_session_dock_game_quit(0) }
+        return true
+    }
+
     private func watchDockGameEnd() {
+        if watchQuitStall() { return }   // BCD Duo fork (modified 2026-11-06)
         guard !endedByDockGame, DockStartScreen.shared.active, MadeiraConfig.flag("MADEIRA_DOCK_GAME_END") else { return }
         var text = [CChar](repeating: 0, count: 32768)
         guard madeira_child_report(&text, Int32(text.count)) > 0 else { return }

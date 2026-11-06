@@ -48,7 +48,8 @@ jobs:
     needs: check
     # BCD Duo fork (modified 2026-11-06): and pgrace34/bcd-games, whose source lists its own releases (BCD_SOURCE_REPO).
     if: (github.repository == 'thebcd69/bcd-games' || github.repository == 'pgrace34/bcd-games') && github.event_name != 'pull_request'
-    runs-on: macos-15
+    # BCD Duo fork (modified 2026-11-06): macos-15 had no capacity for the fork (the job was never picked up); xcode-27 builds the IPA.
+    runs-on: ${{ github.repository == 'thebcd69/bcd-games' && 'macos-15' || 'xcode-27' }}
     timeout-minutes: 15
     outputs:
       changed: ${{ steps.source.outputs.changed }}
