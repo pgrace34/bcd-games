@@ -448,6 +448,15 @@ enum DockInstallScripts {
     }
 
     /// The same, read from this launch's game file (MADEIRA_CFG_GAME, as DockScriptRegistry.enabled reads it); empty without one.
+    /// BCD Duo fork (2026-11-06, Mega Man Star Force Legacy Collection): InstallerMessage.exe, a .NET program a Capcom game runs as its
+    /// one-time install, only checks the Windows media codecs and shows a message. Under Wine Mono it cannot load the Windows Runtime
+    /// contract it asks for (TypeLoadException, Windows.Foundation.UniversalApiContract) and exits 1, so it was never recorded and every
+    /// start of the game ran an installs-only session again. Off: env.MADEIRA_DOCK_INSTALLERMESSAGE_RUN = 1 runs it as before.
+    nonisolated static func isInstallerMessage(_ executable: String) -> Bool {
+        let file = (executable.split(whereSeparator: { $0 == "\\" || $0 == "/" }).last.map(String.init) ?? executable).lowercased()
+        return file == "installermessage.exe" && ProcessInfo.processInfo.environment["MADEIRA_DOCK_INSTALLERMESSAGE_RUN"] != "1"
+    }
+
     nonisolated static func installSkipNames(gameConfigPath: String? = ProcessInfo.processInfo.environment["MADEIRA_CFG_GAME"]) -> Set<String> {
         guard let path = gameConfigPath, !path.isEmpty, let text = try? String(contentsOfFile: path, encoding: .utf8) else { return [] }
         return installSkipNames(text: text)
@@ -762,7 +771,10 @@ enum DockInstallers {
     static func closingCountdown(now: Date = Date()) -> String {
         guard let done = finishedAt else { return closingWords }
         let left = restartOfferDelay - Int(now.timeIntervalSince(done))
-        guard left > 0 else { return closingWords }
+        // BCD Duo fork (modified 2026-11-06, Mega Man Star Force Legacy Collection): at 45 s the restart is offered as an alert on the
+        // app's window, which the starting screen's own window covers, so the player read "closing now" for minutes with nothing
+        // happening. From then on the starting screen says what to do itself.
+        guard left > 0 else { return restartWords }
         return "The installs are finished. BCD is saving the setup and asks you to restart in about \(left) second\(left == 1 ? "" : "s"). "
             + "Do not close BCD yet."
     }
@@ -1181,6 +1193,7 @@ enum DockInstallers {
                                                     || (directXProvided && DockInstallScripts.isDirectXSetup($0.executable)
                                                         && (directXFirst || failedBefore.contains($0.run.name)))
                                                     || skip.contains(DockInstallScripts.label($0.run).lowercased())
+                                                    || DockInstallScripts.isInstallerMessage($0.executable)   // BCD Duo fork (modified 2026-11-06)
                                             })
         let providedRuns = DockInstallScripts.providedRuns(items)
         var providedWritten = 0

@@ -31,6 +31,7 @@ inst = (app / 'DockInstallers.swift').read_text()
 fn = inst[inst.index('    static func closingCountdown(now: Date = Date()) -> String {'):]
 fn = fn[:fn.index('\n    }\n') + 7]
 closing = re.search(r'nonisolated static let closingWords = "([^"]*)"', inst).group(1)
+restart = re.search(r'nonisolated static let restartWords = "([^"]*)"', inst).group(1)   # BCD Duo fork (modified 2026-11-06)
 check('one number for the offer and the countdown', 'nonisolated static let restartOfferDelay = 45' in inst
       and 'Date().timeIntervalSince(finished) >= Double(DockInstallers.restartOfferDelay) {' in (app / 'MadeiraDockModel.swift').read_text()
       and '>= 45' not in (app / 'MadeiraDockModel.swift').read_text())
@@ -45,7 +46,8 @@ if swiftc:
     with tempfile.TemporaryDirectory() as t:
         t = Path(t)
         (t / 'main.swift').write_text('import Foundation\nenum DockInstallers {\n    static var finishedAt: Date?\n'
-                                      '    static let closingWords = "' + closing + '"\n    static let restartOfferDelay = 45\n' + fn + '}\n'
+                                      '    static let closingWords = "' + closing + '"\n    static let restartWords = "' + restart + '"\n'
+                                      '    static let restartOfferDelay = 45\n' + fn + '}\n'
                                       'let d = Date(timeIntervalSince1970: 1_800_000_000)\n'
                                       'print(DockInstallers.closingCountdown(now: d))\n'
                                       'DockInstallers.finishedAt = d\n'
@@ -59,8 +61,8 @@ if swiftc:
                     'The installs are finished. BCD is saving the setup and asks you to restart in about 42 seconds. Do not close BCD yet.',
                     'The installs are finished. BCD is saving the setup and asks you to restart in about 1 second. Do not close BCD yet.',
                     'The installs are finished. BCD is saving the setup and asks you to restart in about 1 second. Do not close BCD yet.',
-                    closing, closing]
-            check('no batch end: the closing words; then 45, 42, 1, 1 seconds; at 45 s and after: the closing words', out == want, out)
+                    restart, restart]
+            check('no batch end: the closing words; then 45, 42, 1, 1 seconds; at 45 s and after: the restart words (BCD Duo fork)', out == want, out)
 else:
     print('skip the compiled part: no swiftc')
 
