@@ -251,6 +251,32 @@ EDITS.append(("dlls/evr/presenter.c", "presenter allocator empty",
 """))
 
 
+# tools/patch-wine-mf-session-order.py (run first) rewrites transform_node_push_sample's sample branch; on that code the
+# queued-input line goes after the branch, logging whenever the input queue is not empty.
+ALTERNATIVES = {
+    "transform input queued on MF_E_NOTACCEPTING": (
+"""        if (!replay && !list_empty(&stream->samples))
+            hr = transform_stream_push_sample(stream, sample);
+        else if ((hr = IMFTransform_ProcessInput(transform, id, sample, 0)) == MF_E_NOTACCEPTING)
+            hr = replay ? transform_stream_requeue_sample_head(stream, sample) : transform_stream_push_sample(stream, sample);
+""",
+"""        if (!replay && !list_empty(&stream->samples))
+            hr = transform_stream_push_sample(stream, sample);
+        else if ((hr = IMFTransform_ProcessInput(transform, id, sample, 0)) == MF_E_NOTACCEPTING)
+            hr = replay ? transform_stream_requeue_sample_head(stream, sample) : transform_stream_push_sample(stream, sample);
+        if (!list_empty(&stream->samples))
+        {   /* madeira-bcd: [mf-diag] (tools/patch-wine-mf-video-diag.py): samples waiting in front of the transform */
+            unsigned int depth = list_count(&stream->samples);
+            static LONG queued;
+            LONG n = InterlockedIncrement(&queued);
+            if (!(depth & (depth - 1)) || !(depth % 64) || n <= 8)
+                ERR("[mf-diag] transform %p input %u has %u sample(s) waiting%s (#%ld) t=%lu\\n", transform, input, depth,
+                    replay ? " (a replayed one refused)" : "", n, GetTickCount());
+        }
+"""),
+}
+
+
 def main() -> int:
     texts = {}
     for rel, _, _, _ in EDITS:
@@ -267,11 +293,15 @@ def main() -> int:
     if any(done):
         print("patch-wine-mf-video-diag: partly applied (marker in some files only); restore the wine tree first")
         return 1
-    for rel, name, old, _ in EDITS:
+    chosen = []
+    for rel, name, old, new in EDITS:
+        if texts[rel].count(old) != 1 and name in ALTERNATIVES and texts[rel].count(ALTERNATIVES[name][0]) == 1:
+            old, new = ALTERNATIVES[name]
         if texts[rel].count(old) != 1:
             print(f"patch-wine-mf-video-diag: anchor moved: {name} in {rel} (found {texts[rel].count(old)} times)")
             return 1
-    for rel, _, old, new in EDITS:
+        chosen.append((rel, old, new))
+    for rel, old, new in chosen:
         texts[rel] = texts[rel].replace(old, new)
     for rel, text in texts.items():
         (wine / rel).write_text(text)

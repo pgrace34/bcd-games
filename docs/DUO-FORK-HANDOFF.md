@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-07 (build 639). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-07 (build 640). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **639**). The release is tagged `v0.1.<build>`.
+  **640**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -105,6 +105,28 @@ in front of a transform that refused input (depth at powers of two); samples rea
 refusals and samples ignored while not running; presenter shows (pts, clock, ahead/late, queue depth), BACKWARDS frames,
 waits >= 100 ms, presenter allocator empty. Next: read the `[mf-diag]` lines from a 30 s run of the opening movie and
 fix the link that misbehaves.
+
+**Build 639's [mf-diag] log (2026-11-07 19:28, opening movie ~30 s):** user confirmed the mobile-data fix works.
+- The video source sent a 1920x1080 sample about every 5 ms from the start while the EVR took one every 33 ms; the
+  sample copier's input queue in the session reached 256 (`transform ... refused a sample: queued, depth 256`).
+  3424 session requests to source streams in the run. Presenter allocator empty 32x; presenter waits of 1.2 s.
+- 45 `presenter BACKWARDS` lines: pts 233 ms shown after 5572 ms (the start backlog), then repeatedly 30-600 ms back,
+  each right after a small burst of queued copier input.
+- Cause 1 (order): `transform_node_push_sample` offers every arriving sample to the transform (ProcessInput) even while
+  older samples wait in that input's queue; the copier takes one sample at a time, so whenever it was free the newest
+  frame jumped the queue and the older ones were fed afterwards.
+- Cause 2 (over-requesting): `transform_node_deliver_samples` requests upstream whenever the transform needs input and
+  its queue is empty, without tracking requests already in flight (the source answers asynchronously); every
+  allocator-release callback (`session_deliver_pending_samples`) and arrival repeated it.
+
+**Build 640:** `tools/patch-wine-mf-session-order.py` (dlls/mf/session.c): per input `madeira_pending` (requests in
+flight, decremented by any arrival from upstream including NULL/EOS, cleared on flush) and `madeira_replay` (the sample
+being delivered was popped from the input's own queue). Arrivals go behind queued samples; a replayed one is offered
+first and goes back to the head if refused; upstream is asked only with no request in flight. Runs before
+patch-wine-mf-video-diag.py, which now also recognises the patched push_sample (its queue line reads
+`has N sample(s) waiting`). Not compiled locally (Wine's generated headers are not available here); built by CI.
+Next: on 640, expect no `presenter BACKWARDS`, queue depths of 1-2, source video samples at ~30/s, and memory flat.
+If a movie stalls, `madeira_pending` stuck above 0 is the first suspect (a request lost without a flush).
 
 ## Mobile data and Steam Cloud (build 639)
 

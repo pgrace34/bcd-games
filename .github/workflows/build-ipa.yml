@@ -1960,6 +1960,15 @@ jobs:
       - name: Patch wine rpcrt4 named-pipe diagnostics
         run: python3 tools/patch-wine-rpc-np-diag.py wine
 
+      # BCD Duo fork (added 2026-11-07, build 640): Chrono Trigger's movies stepped back a few frames and stalled at the start.
+      # Build 639's [mf-diag] showed both in Wine's media session (dlls/mf/session.c): a sample arriving at the sample copier
+      # was offered to it ahead of older samples still queued for it (45 frames shown out of order, up to 5.3 s back), and
+      # the session kept asking the source for another sample while one was already on its way (the copier's queue reached
+      # 256 frames, 2 GB+). The session now keeps each transform input's samples in order and one request in flight per
+      # input. Before the [mf-diag] step, which recognises the patched code.
+      - name: Patch wine media session sample order
+        run: python3 tools/patch-wine-mf-session-order.py wine
+
       # BCD Duo fork (added 2026-11-07, build 638): [mf-diag] follows a Media Foundation movie's frames from the media source
       # through the session, the sample copier and the EVR to the presenter (Chrono Trigger's movies stutter and step back a
       # few frames; build 637's log showed ~390 frames decoded in the first 3 s, then ~9 s idle). Logging only.
@@ -5344,6 +5353,8 @@ jobs:
             longer stall every frame on a GPU readback (Chrono Trigger's anime movies).
           - On mobile data, starting a Steam game checks Steam Cloud before turning on JIT, so the start no longer fails to
             reach Steam Cloud and leaves Mobile Data switched off.
+          - Movies played through Media Foundation stay in order and no longer buffer seconds of video before they start, so
+            they no longer stutter or step back a few frames (Chrono Trigger's anime movies).
           - $HOW
           NOTES
           # The tag follows the commit the IPA was built from: a release already there under this build number (an earlier commit
