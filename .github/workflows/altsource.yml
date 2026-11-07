@@ -13,8 +13,8 @@ on:
       - .github/workflows/altsource.yml
       - tools/update-altsource.py
       - tests/host/check-altsource.py
-  schedule:
-    - cron: '17 * * * *'
+  # BCD Duo fork (modified 2026-11-07): no hourly schedule. GitHub switched the fork's Actions off for wasted compute
+  # (2026-11-07); every fork build dispatches this workflow after its release, so the schedule added nothing here.
   # No release trigger (2026-10-22): those runs ran on the tag's ref, which the github-pages environment does not
   # allow, so each release mailed three failures. The hourly schedule and a dispatch on main after a release publish it.
   workflow_dispatch:
