@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-07 (build 636). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-07 (build 637). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **636**). The release is tagged `v0.1.<build>`.
+  **637**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -46,23 +46,39 @@ audio is choppy (about a 10 ms readback per frame). The game reaches the title s
 
 **Movie path:** Media Foundation → Wine EVR → D3D9 (DXMT's d3d9 in a 32-bit process) → the child window
 `VideoPlayerSubWindow` under the GLFW game window. The EVR mixer calls dxva2 VideoProcessBlt (ColorFill black, then
-StretchRect from a plain offscreen surface into the render target). The presenter then StretchRects into an additional
-swapchain on the child window and Presents.
+StretchRect from the 1920x1080 plain frame surface into the mixer's 1154x810 plain output surface). The presenter then
+copies that into an additional swapchain's back buffer on the child window and Presents.
 
-**Two hypotheses. Build 636 logs both:**
-1. **A StretchRect is rejected.** DXMT's planner (`dxmt/src/d3d9/d3d9_stretchrect.hpp`, `plan_stretch_rect`) rejects a
-   size-mismatched stretch into a non-RENDERTARGET destination, which DXVK allows, and returns INVALIDCALL silently.
-   Look for `[d3d9-stretch] ... REJECTED` lines (patch: `tools/patch-dxmt-d9-stretch-log.py`).
-   *Fix if confirmed:* let DXMT stretch into a plain DEFAULT-pool destination as DXVK does (first check that such
-   textures can be render targets in DXMT).
-2. **The child swapchain's layer sits under the GL parent's layer.** Winios.m (`app/Madeira/Winios/Winios.m`) dumps the
-   compositor's sublayers 1.5 s and 8 s after a Metal layer is created: `[layer-order] dump N ...` lines with hwnd,
-   root, hidden, frame, z and drawable counts. *Fix if confirmed:* order a child window's Metal layer above its GL
-   parent (see `winios_order_family`, `g_root_hwnd`).
+**Build 636's logs (2026-11-07, run with `env.MADEIRA_WG_VIDEO_FORMAT = argb32`, not rgb32):**
+- **Hypothesis 1 confirmed.** Every frame's `[d3d9-stretch]` pair is: the frame StretchRect REJECTED planner (src 1920x1080
+  A8R8G8B8 plain DEFAULT surface, rect full -> dst 1154x810 X8R8G8B8 plain DEFAULT surface (usage 0), rect (0,81 1154x649)),
+  then an ok copy of that 1154x810 surface into the 1154x810 render target. 4096 of 8192 calls rejected: every frame.
+  Cause: `plan_stretch_rect`'s gate `extent_mismatch && !(dst.usage & D3DUSAGE_RENDERTARGET)`.
+- **Hypothesis 2 ruled out.** `[layer-order]` dumps 3 to 6 put the movie's child window (hwnd 0x20068, root 0x10064,
+  `VideoPlayerSubWindow`) at the top of the stack (index 19, above its GL parent 0x10064 at 12), unhidden, and its drawables
+  grow (12 -> 162). The swapchain presents fine; it just presents black.
+- **Choppy sound found.** `[rb-tex] fmt 80 1920x1080 L0` x4096 and `[d9-drain] readback-drains=4096 avg-us=9553`: each
+  frame's LockRect of the EVR's 1920x1080 frame surface drained the GPU and read the texture back (~9.5 ms), though only the
+  GPU reads that surface. DXMT's LockRect reads back every non-DYNAMIC DEFAULT surface on every non-DISCARD lock.
 
-**Next step:** the user installs build 636, launches Chrono Trigger with `rgb32`, lets the movie run about 15 s and
-sends the logs. Read the `[d3d9-stretch]` and `[layer-order]` lines, make the fix, and bump to build 637. Once the
-movie shows, consider making `rgb32` the fork's default for this game.
+**Build 637 (both fixes are DXMT patch scripts run by build-ipa.yml before the i386 farm key):**
+- `tools/patch-dxmt-d9-stretch-plain.py`: the planner lets a size-changing StretchRect target a standalone DEFAULT-pool
+  plain surface (as DXVK and wined3d do). CreateOffscreenPlainSurface already gives that texture Metal RenderTarget usage.
+  A host harness (stub headers + the patched header) ran the logged case: REJECTED before, `stretch` after; a plain texture
+  level, a render target into a plain surface and a BC destination stay rejected.
+- `tools/patch-dxmt-d9-plain-lock.py`: `MTLD3D9Surface::m_madeira_mirror_current` (set after a readback, cleared by
+  `madeiraNoteGpuWrite()`, which the four `dst->flagContainerAutoGenDirty()` writer exits in d3d9_device.cpp now call:
+  UpdateSurface, StretchRect, ColorFill x2). A plain surface's LockRect skips the readback while it holds.
+  `[d9-plain-lock]` counts skips. `env.MADEIRA_D9_PLAIN_LOCK_READBACK = 1` restores a readback on every lock.
+  If DXMT ever gains another GPU writer into surfaces, it must call `madeiraNoteGpuWrite()` (the script refuses to apply
+  if the writer count is no longer 4).
+- Release notes gained a bullet for it.
+
+**Next step:** the user installs build 637 and plays the opening movie. Expect `[d3d9-stretch] ... ok kind=stretch` for the
+1920x1080 -> 1154x810 calls, no more REJECTED, `[d9-plain-lock] N readback(s) skipped`, and `[d9-drain]` nearly silent
+during the movie. If the picture shows, try both `rgb32` and `argb32` and consider making the one that works the fork's
+default for this game. If the picture is still black with `kind=stretch`, look at the Stretch render pass into a
+BGRA8 plain texture with a dst origin offset (0,81) (EmitStretchBlitOp_d9) and the X8R8G8B8 alpha handling.
 
 ## Other open items
 

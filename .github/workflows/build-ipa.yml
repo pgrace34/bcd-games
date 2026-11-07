@@ -2987,6 +2987,22 @@ jobs:
       - name: Patch DXMT D3D9 StretchRect log
         run: python3 tools/patch-dxmt-d9-stretch-log.py
 
+      # BCD Duo fork (added 2026-11-07, build 637): build 636's [d3d9-stretch] lines showed Chrono Trigger's movie frames
+      # REJECTED: dxva2's VideoProcessBlt scales each 1920x1080 frame into the EVR mixer's plain offscreen surface, and DXMT's
+      # planner refused a size-changing StretchRect into a non-render-target, so the frame stayed black. A DEFAULT-pool
+      # offscreen-plain destination now takes the scale (its Metal texture already has RenderTarget usage), as DXVK and
+      # wined3d allow. After the StretchRect log, which still reports each verdict. Before the i386 farm key, which hashes it.
+      - name: Patch DXMT D3D9 StretchRect into plain surfaces
+        run: python3 tools/patch-dxmt-d9-stretch-plain.py
+
+      # BCD Duo fork (added 2026-11-07, build 637): the same movies' choppy sound. Every LockRect of a DEFAULT-pool plain surface
+      # drained the GPU and read the texture back (build 636: one 1920x1080 readback per movie frame, about 9.5 ms each), though
+      # the EVR's frame surface is only ever read by the GPU. The device's GPU writers (ColorFill, StretchRect, UpdateSurface)
+      # now mark their destination, and a plain surface whose mirror is current skips the readback ([d9-plain-lock]);
+      # env MADEIRA_D9_PLAIN_LOCK_READBACK=1 restores it. Before the i386 farm key, which hashes it.
+      - name: Patch DXMT D3D9 plain-surface lock readback
+        run: python3 tools/patch-dxmt-d9-plain-lock.py
+
       # Counter-Strike: Source 64-bit (round 624, agent D2 S18, W69RYK: a GetData poll loop for good): [d3d9-query-stuck] names a query
       # still pending after 1,048,576 polls (building, the GPU behind, or a lost occlusion result), 16 lines; DXMT_D9_QUERY_LOST_MS
       # (off unless a game's file sets it) answers a lost occlusion query as visible. Before the i386 farm key, which hashes it.
@@ -5318,6 +5334,8 @@ jobs:
           - Split screen when the inner display is held upright: the game on top, the touch controls below (Settings › Graphics).
           - A Dock game that stops drawing after you quit is ended after 30 s instead of freezing the app.
           - Installer prompts (installermessage.exe) are not run, and the restart countdown no longer waits forever.
+          - Movies played through Windows' video renderer (EVR) show their picture in Direct3D 9 (DXMT) instead of black, and no
+            longer stall every frame on a GPU readback (Chrono Trigger's anime movies).
           - $HOW
           NOTES
           # The tag follows the commit the IPA was built from: a release already there under this build number (an earlier commit
