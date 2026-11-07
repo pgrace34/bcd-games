@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-07 (build 638). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-07 (build 639). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **638**). The release is tagged `v0.1.<build>`.
+  **639**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -105,6 +105,18 @@ in front of a transform that refused input (depth at powers of two); samples rea
 refusals and samples ignored while not running; presenter shows (pts, clock, ahead/late, queue depth), BACKWARDS frames,
 waits >= 100 ms, presenter allocator empty. Next: read the `[mf-diag]` lines from a 30 s run of the opening movie and
 fix the link that misbehaves.
+
+## Mobile data and Steam Cloud (build 639)
+
+Reported 2026-11-07: on mobile data BCD Duo "disconnects me from mobile data and then refuses to launch as it can't check
+Steam Cloud". Cause: a Dock start (`startDock` in ContentView.swift, the path Steam games take) enabled JIT before the
+Steam Cloud check. With no Wi-Fi, enabling JIT runs the Madeira JIT shortcut, which turns Mobile Data off (LocalDevVPN's
+loopback does not work over cellular) and turns it back on only inside the launch, after the debugger detaches
+(`JITNetworkShortcut.restoreBlocking`). The cloud check then ran with no network, failed, held the start, and the launch
+that would have restored Mobile Data never ran (`restoreLeftover` puts it back only at the next app start). Fix: the
+Dock start checks Steam Cloud first (as the library's direct start already did), and the start JIT resumes passes
+`cloudChecked: true` so it is not asked again ("Play anyway" stays honoured). tests/host/check-bcd-launch.py,
+check-jit-method.py and check-dock-start-screen.py updated for the order and signature.
 
 ## Other open items
 

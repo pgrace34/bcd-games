@@ -213,13 +213,16 @@ check(ordered(started, "try entry.validate()", "entry.configureLaunch()", "BCDLa
               "LogStore.shared.startSessionLog(program: program)", "library.begin(entry, remember: !BCDLaunchersLive.isSetup(entry))",
               "runWineFullSequence(profile: entry)"),   # a launcher's installer run (BCDLaunchersLive) is the one start the library does not remember
       "Play with JIT on: the profile's checks, the game's options, its log, the session")
-dock = code(block(content, "private func startDock(_ game: DockGame, compactPool: Bool, profile: LibraryEntry? = nil)"))
-check(ordered(dock, "jitReadyForLaunch(entry: profile?.id,",
-              "cloudClear(game.id, name: game.name, retry:",
+dock = code(block(content, "private func startDock(_ game: DockGame, compactPool: Bool, profile: LibraryEntry? = nil, cloudChecked: Bool = false)"))
+# BCD Duo fork (2026-11-07): Steam Cloud before JIT, as the library's own start: the JIT shortcut turns Mobile Data off
+# until the game starts, so a cloud check after it had no network, held the start and left Mobile Data off.
+check(ordered(dock, "cloudClear(game.id, name: game.name, retry:",
+              "jitReadyForLaunch(entry: profile?.id,",
+              "then: { startDock(game, compactPool: compactPool, profile: profile, cloudChecked: true) }",
               "try MadeiraDock.validate(game, drive: MadeiraDock.drive)", "try profile?.validate()",
               "DockInstallers.prepare(game, drive: MadeiraDock.drive, prefix: MadeiraDock.prefix,",
               "if let profile { library.begin(profile, dock: game) }", "runWineFullSequence(profile: profile)"),
-      "BCD Dock: JIT (the library's prompt), Steam Cloud, the checks, the one-time installs, the game's session")
+      "BCD Dock: Steam Cloud, JIT (the library's prompt), the checks, the one-time installs, the game's session")
 jit = code(block(content, "private func jitReadyForLaunch("))
 check(ordered(jit, "if StikJITHelper.ready { return true }", "if let launch {", "launchAfterJIT = launch",
               "library.startingJIT = entry", "if jitStatus != .testing { enableJIT() }"),

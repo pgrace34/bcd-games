@@ -2324,7 +2324,7 @@ struct ContentView: View {
     /// show in the library, and the session gets the full-screen game view.
     /// `profile` is a Steam game's library entry (its Game details page): the
     /// session then takes that entry's display, performance and on-screen settings.
-    private func startDock(_ game: DockGame, compactPool: Bool, profile: LibraryEntry? = nil) {
+    private func startDock(_ game: DockGame, compactPool: Bool, profile: LibraryEntry? = nil, cloudChecked: Bool = false) {
         // A second Play while a Dock start is on its way (a double tap) is ignored: its failure
         // would clean up the first start's sign-in transfer and give the account back while the
         // host signs in (Panzer Paladin 9BAP3Q: Dock code 30). DockLaunchGate.
@@ -2332,9 +2332,17 @@ struct ContentView: View {
             logStore.log("[madeira-dock] a start is already on its way: this Play is ignored app=\(game.id)")
             return
         }
+        // BCD Duo fork (2026-11-07): Steam Cloud first, while the network is still the one the player has. Enabling JIT can
+        // run the Madeira JIT shortcut, which turns Mobile Data off when there is no Wi-Fi and turns it back on only once
+        // the game has started (JITNetworkShortcut.restoreBlocking, after the debugger detaches). Checked after JIT, the
+        // cloud check ran with no network, failed ("can't check Steam Cloud"), held the start, and left Mobile Data off.
+        // The library's direct start already checks the cloud before JIT. `cloudChecked`: the start JIT resumes once it
+        // is on has passed the check (or "Play anyway") already, so it is not asked again.
+        if !cloudChecked {
+            guard cloudClear(game.id, name: game.name, retry: { startDock(game, compactPool: compactPool, profile: profile) }) else { return }
+        }
         guard jitReadyForLaunch(entry: profile?.id,
-                                then: { startDock(game, compactPool: compactPool, profile: profile) }) else { return }
-        guard cloudClear(game.id, name: game.name, retry: { startDock(game, compactPool: compactPool, profile: profile) }) else { return }
+                                then: { startDock(game, compactPool: compactPool, profile: profile, cloudChecked: true) }) else { return }
         guard wine_process_is_running() == 0, wineserver_is_running() == 0, library.current == nil else {
             logStore.log("[madeira-dock] a session already ran in this app run; restart BCD first", level: .error)
             library.error = "Another session is still running."

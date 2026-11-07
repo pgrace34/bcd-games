@@ -5342,6 +5342,8 @@ jobs:
           - Installer prompts (installermessage.exe) are not run, and the restart countdown no longer waits forever.
           - Movies played through Windows' video renderer (EVR) show their picture in Direct3D 9 (DXMT) instead of black, and no
             longer stall every frame on a GPU readback (Chrono Trigger's anime movies).
+          - On mobile data, starting a Steam game checks Steam Cloud before turning on JIT, so the start no longer fails to
+            reach Steam Cloud and leaves Mobile Data switched off.
           - $HOW
           NOTES
           # The tag follows the commit the IPA was built from: a release already there under this build number (an earlier commit
