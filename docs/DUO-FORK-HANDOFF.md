@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-07 (build 637). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-07 (build 638). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **637**). The release is tagged `v0.1.<build>`.
+  **638**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -79,6 +79,32 @@ copies that into an additional swapchain's back buffer on the child window and P
 during the movie. If the picture shows, try both `rgb32` and `argb32` and consider making the one that works the fork's
 default for this game. If the picture is still black with `kind=stretch`, look at the Stretch render pass into a
 BGRA8 plain texture with a dst origin offset (0,81) (EmitStretchBlitOp_d9) and the X8R8G8B8 alpha handling.
+
+**Build 637's log (2026-11-07 16:06, argb32):** the movie shows. Every frame's StretchRect is `ok kind=stretch`;
+`[d9-plain-lock]` skipped the readbacks after the first two (one per EVR frame surface). The user reports stutter and the
+picture "occasionally goes back a few frames". The log shows:
+- 16:06:37.0-39.5: thread-pool worker 00e4 at a full core allocates ~390 frames of 1920x1080 BGRA (0x7f0000 guest
+  commits, `[mem-burst]` +350 MB per 250 ms, `[laa] SPILL` past the low 2 GB; phys 2.4 -> 5.0 GB, 2 GB compressed).
+  The census shows only ~12 LockRects (copier copies into EVR samples) in that time, so ~380 frames were queued
+  upstream of the copier, not drawn.
+- 16:06:39.5-48.9: process nearly idle (~9 s). 16:06:48.9 on: worker 00d8 at ~60% of a core while phys drains
+  5.0 -> 1.8 GB (the backlog consumed); from 16:06:55.8 00e4 decodes steadily (~25% core) alongside.
+- `[d3d9-census]` summary 2: 100 presents in 13.2 s (~7.6/s for a 29.97 fps movie), one LockRect per present.
+- DXMT is not the cause: Unlock uploads ride the ordered op stream (stageTextureUpload -> QueueBlitOp), so a frame's
+  upload cannot overtake an earlier StretchRect; no `[d9-upload-commit] commits=` line, i.e. the upload ring stayed
+  under 64 MB between presents.
+- Pipeline (from Wine source at the pinned commit): winegstreamer media source (memory samples, one per RequestSample)
+  -> media session -> sample copier MFT (MFCreateSampleCopierMFT, into the EVR stream sink allocator's D3D samples)
+  -> EVR stream sink -> mixer (dxva2 VideoProcessBlt; drops a sample it refuses, NOTACCEPTING, silently) -> presenter
+  (waits while pts - clock > 3*threshold, presents late frames immediately, never drops; no repaint implemented).
+  Reading it did not show which link issues ~390 source requests, or how frames present out of order.
+
+**Build 638:** `tools/patch-wine-mf-video-diag.py` (logging only, ERR lines `[mf-diag]`, rate-limited, each with
+t=GetTickCount): source samples per stream with pts; session requests to source streams; sink requests; samples queued
+in front of a transform that refused input (depth at powers of two); samples reaching a sink with no request; EVR mixer
+refusals and samples ignored while not running; presenter shows (pts, clock, ahead/late, queue depth), BACKWARDS frames,
+waits >= 100 ms, presenter allocator empty. Next: read the `[mf-diag]` lines from a 30 s run of the opening movie and
+fix the link that misbehaves.
 
 ## Other open items
 

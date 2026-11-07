@@ -1960,6 +1960,12 @@ jobs:
       - name: Patch wine rpcrt4 named-pipe diagnostics
         run: python3 tools/patch-wine-rpc-np-diag.py wine
 
+      # BCD Duo fork (added 2026-11-07, build 638): [mf-diag] follows a Media Foundation movie's frames from the media source
+      # through the session, the sample copier and the EVR to the presenter (Chrono Trigger's movies stutter and step back a
+      # few frames; build 637's log showed ~390 frames decoded in the first 3 s, then ~9 s idle). Logging only.
+      - name: Patch wine Media Foundation video diagnostics
+        run: python3 tools/patch-wine-mf-video-diag.py wine
+
       # madeira-bcd: [msgbox-origin] / [pf-xmmi64] name the CPU check Burnout Paradise fails ("CPU Error ...
       # does not support the SSE2 Command Set", build 574 log AQY7NM; CPUID and the PF_XMMI64 tables say
       # SSE2 is present, so the game's check is unknown). Logging only.
