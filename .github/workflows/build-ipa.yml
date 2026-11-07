@@ -2981,6 +2981,12 @@ jobs:
       - name: Patch DXMT D3D9 texture format log
         run: python3 tools/patch-dxmt-d9-texfmt-log.py
 
+      # BCD Duo fork (added 2026-11-07): Chrono Trigger's anime movies play (sound) but stay black. [d3d9-stretch] names what
+      # each StretchRect of Wine's EVR / dxva2 was asked to do and whether DXMT's planner took it (first 24 calls, first 48
+      # rejections). Log only. Before the i386 farm key, which hashes it.
+      - name: Patch DXMT D3D9 StretchRect log
+        run: python3 tools/patch-dxmt-d9-stretch-log.py
+
       # Counter-Strike: Source 64-bit (round 624, agent D2 S18, W69RYK: a GetData poll loop for good): [d3d9-query-stuck] names a query
       # still pending after 1,048,576 polls (building, the GPU behind, or a lost occlusion result), 16 lines; DXMT_D9_QUERY_LOST_MS
       # (off unless a game's file sets it) answers a lost occlusion query as visible. Before the i386 farm key, which hashes it.

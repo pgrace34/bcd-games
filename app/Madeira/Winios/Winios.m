@@ -1880,12 +1880,17 @@ static unsigned long long winios_hidden_present_interval_ns(void) {
 @interface MadeiraWindowMetalLayer : CAMetalLayer
 @property (nonatomic) uintptr_t madeiraHwnd;
 - (void)madeiraSetWindowHidden:(BOOL)hidden;
+- (unsigned long long)madeiraDrawables;   /* BCD Duo fork (added 2026-11-07): drawables taken, for [layer-order] */
 @end
 
 @implementation MadeiraWindowMetalLayer {
     int _windowHidden;                /* __atomic: set on the main thread, read on DXMT's */
     unsigned long long _lastDrawableNs;
     int _firstDrawableSaid;           /* __atomic: the [metal-hud] line below was written */
+    unsigned long long _drawables;    /* __atomic: BCD Duo fork (added 2026-11-07), read by [layer-order] */
+}
+- (unsigned long long)madeiraDrawables {
+    return __atomic_load_n(&_drawables, __ATOMIC_RELAXED);
 }
 - (void)madeiraSetWindowHidden:(BOOL)hidden {
     __atomic_store_n(&_windowHidden, hidden ? 1 : 0, __ATOMIC_RELAXED);
@@ -1895,6 +1900,7 @@ static unsigned long long winios_hidden_present_interval_ns(void) {
     winios_note_swap_drawable(self.madeiraHwnd, drawableSize);   /* [tiny-win], driver_ios.c */
 }
 - (nullable id<CAMetalDrawable>)nextDrawable {
+    __atomic_fetch_add(&_drawables, 1, __ATOMIC_RELAXED);   /* BCD Duo fork (added 2026-11-07): [layer-order] */
     if (!__atomic_exchange_n(&_firstDrawableSaid, 1, __ATOMIC_RELAXED)) {
         @autoreleasepool {   /* once per layer: what Apple's Metal HUD is drawn into (MADEIRA_METAL_HUD_MAIN, below) */
             CGSize d = self.drawableSize, b = self.bounds.size;
@@ -2045,6 +2051,48 @@ static void winios_swap_layer_note(NSNumber *key, const char *why) {
 /* Called by IOSDisplayShim on a wine thread when DXMT creates a swapchain
  * view for an HWND in desktop mode. Returns the (unretained) CAMetalLayer;
  * the shim CFRetains it for DXMT's lifetime handling. */
+/* BCD Duo fork (added 2026-11-07): [layer-order]. Chrono Trigger's anime movie presents into a child window's Metal layer
+ * (Wine's EVR, D3D9) while the game's own OpenGL window, its parent, keeps presenting black at 60 fps; the screen stays black.
+ * Whether the child's layer is under the parent's is what this answers: the compositor's sublayers bottom to top, each window
+ * layer's hwnd, root, visibility and frame and its Metal layer's visibility, frame and drawables taken so far. Written 1.5 s and
+ * 8 s after any window's Metal layer is created, at most 16 times a process. Log only. Main thread. */
+static void winios_layer_order_dump(const char *why) {
+    static unsigned dumps;
+    if (!g_compositor_view || ++dumps > 16) return;
+    NSArray<CALayer *> *subs = [g_compositor_view.layer.sublayers copy];
+    fprintf(stderr, "[layer-order] dump %u (%s): %lu sublayers, bottom first%s\n", dumps, why,
+            (unsigned long)subs.count, g_comp_game ? " (game-mode compositor)" : "");
+    NSUInteger i = 0;
+    for (CALayer *l in subs) {
+        NSNumber *hk = nil;
+        for (NSNumber *k in g_layers) if (g_layers[k] == l) { hk = k; break; }
+        if (!hk) {
+            fprintf(stderr, "[layer-order]   %2lu %s hidden=%d frame=(%.0f,%.0f %.0fx%.0f) z=%.0f\n", (unsigned long)i,
+                    NSStringFromClass([l class]).UTF8String, l.hidden, l.frame.origin.x, l.frame.origin.y,
+                    l.frame.size.width, l.frame.size.height, (double)l.zPosition);
+            i++;
+            continue;
+        }
+        NSNumber *root = g_root_hwnd[hk];
+        CAMetalLayer *ml = g_metal_layers ? g_metal_layers[hk] : nil;
+        char mls[200] = "no metal layer";
+        if (ml) {
+            unsigned long long draws = [ml isKindOfClass:[MadeiraWindowMetalLayer class]]
+                ? [(MadeiraWindowMetalLayer *)ml madeiraDrawables] : 0;
+            snprintf(mls, sizeof(mls), "metal hidden=%d frame=(%.0f,%.0f %.0fx%.0f) drawable %.0fx%.0f drawables=%llu%s",
+                     ml.hidden, ml.frame.origin.x, ml.frame.origin.y, ml.frame.size.width, ml.frame.size.height,
+                     ml.drawableSize.width, ml.drawableSize.height, draws, ml.superlayer == l ? "" : " (not under its window)");
+        }
+        fprintf(stderr, "[layer-order]   %2lu hwnd=0x%llx root=%s hidden=%d frame=(%.0f,%.0f %.0fx%.0f) contents=%d z=%.0f | %s\n",
+                (unsigned long)i, (unsigned long long)hk.unsignedLongLongValue,
+                root ? [NSString stringWithFormat:@"0x%llx", root.unsignedLongLongValue].UTF8String : "self",
+                l.hidden, l.frame.origin.x, l.frame.origin.y, l.frame.size.width, l.frame.size.height,
+                l.contents != nil, (double)l.zPosition, mls);
+        i++;
+    }
+    fflush(stderr);
+}
+
 CAMetalLayer *winios_metal_layer_for_hwnd(void *hwnd) {
     __block CAMetalLayer *result = nil;
     void (^make)(void) = ^{
@@ -2075,6 +2123,17 @@ CAMetalLayer *winios_metal_layer_for_hwnd(void *hwnd) {
             winios_census_note_metal((HWND)hwnd);
             winios_metal_hud_pick();
             winios_swap_layer_note(key, "metal layer created");
+            {   /* BCD Duo fork (added 2026-11-07): [layer-order], above */
+                char why[64];
+                snprintf(why, sizeof(why), "metal layer for hwnd=%p", hwnd);
+                NSString *w = @(why);
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    winios_layer_order_dump([[w stringByAppendingString:@", +1.5 s"] UTF8String]);
+                });
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                    winios_layer_order_dump([[w stringByAppendingString:@", +8 s"] UTF8String]);
+                });
+            }
         }
         result = ml;
     };
