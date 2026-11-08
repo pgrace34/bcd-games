@@ -115,6 +115,9 @@ struct BCDTouchControl: View, Equatable {
     @State private var direction = -1
     @State private var vector = CGSize.zero
     @State private var dragBase: CGPoint?
+    /// Editing: this touch has moved past the slop (a drag, not a press), and whether the control was selected at touch-down.
+    @State private var dragMoved = false
+    @State private var dragWasSelected = false
 
     nonisolated static func == (a: BCDTouchControl, b: BCDTouchControl) -> Bool {
         a.item == b.item && a.screen == b.screen && a.layoutScale == b.layoutScale && a.opacity == b.opacity
@@ -161,21 +164,44 @@ struct BCDTouchControl: View, Equatable {
         vector = .zero
     }
 
-    /// Editing: touch a control to select it, drag it to move it.
+    /// Editing: press a control (touch and let go) to select it and open its panel; drag it to move it.
+    /// BCD Duo fork (2026-11-08): a drag no longer opens the panel. Selecting on touch-down opened it at once, and on an
+    /// upright large screen the panel (top or bottom, BCDTouchPanelPlacement) covered the control being dragged across it.
+    /// Now a drag past `dragSlop` puts any open panel away while the control moves; the panel comes back on release only if
+    /// it was this control's (docked clear of where the control now is). A touch that never moves that far is a press.
     private var editDrag: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 guard editing, let arranging else { return }
-                arranging.select(item.id)
-                if item.locked { return }   // selected to unlock it, resize nothing, move nothing
-                if dragBase == nil { dragBase = CGPoint(x: item.x, y: item.y) }
+                if dragBase == nil {   // touch-down
+                    dragBase = CGPoint(x: item.x, y: item.y)
+                    dragMoved = false
+                    dragWasSelected = selected
+                }
+                if item.locked { return }   // selected on release to unlock it; resize nothing, move nothing
+                if !dragMoved {
+                    guard hypot(Double(value.translation.width), Double(value.translation.height)) >= Self.dragSlop else { return }
+                    dragMoved = true
+                    arranging.select(nil)   // the panel steps aside while the control moves
+                }
                 let base = dragBase ?? .zero
                 arranging.move(item.id,
                                x: BCDTouchGeometry.clampPlace(Double(base.x) + Double(value.translation.width / screen.width)),
                                y: BCDTouchGeometry.clampPlace(Double(base.y) + Double(value.translation.height / screen.height)))
             }
-            .onEnded { _ in dragBase = nil }
+            .onEnded { _ in
+                defer {
+                    dragBase = nil
+                    dragMoved = false
+                    dragWasSelected = false
+                }
+                guard editing, let arranging else { return }
+                if !dragMoved || dragWasSelected { arranging.select(item.id) }
+            }
     }
+
+    /// How far a touch moves before it is a drag rather than a press (points).
+    private static let dragSlop = 8.0
 }
 
 // MARK: - The face

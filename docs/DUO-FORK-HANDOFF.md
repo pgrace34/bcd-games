@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-07 (build 640). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-08 (build 641). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **640**). The release is tagged `v0.1.<build>`.
+  **641**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -127,6 +127,26 @@ patch-wine-mf-video-diag.py, which now also recognises the patched push_sample (
 `has N sample(s) waiting`). Not compiled locally (Wine's generated headers are not available here); built by CI.
 Next: on 640, expect no `presenter BACKWARDS`, queue depths of 1-2, source video samples at ~30/s, and memory flat.
 If a movie stalls, `madeira_pending` stuck above 0 is the first suspect (a request lost without a flush).
+
+**Build 640's log (2026-11-07 21:36, opening movie ~32 s): fixed.** Presenter showed frame #960 at pts 32032 ms with
+the clock at 32006 ms (every frame ~25 ms ahead, threshold 8 ms, queue 1); no waits, nothing late, no BACKWARDS, no
+samples queued in front of the copier; source video samples at the movie's rate (960 in 31.9 s); D3D9 census 99 frames
+in 3.27 s; footprint 1.5-1.8 GB with no [mem-burst] (was 4.6-5.0 GB). One sample refused by the mixer at the start
+(pts 233). The log's first lines are a carried-over tail of the previous session (t=114495...), not this run.
+Open: trim [mf-diag] to its anomaly lines (BACKWARDS, >1 s late, waits, queue depth, refused/ignored/unrequested,
+presenter allocator empty) and drop the routine per-sample/request/show lines; the user was asked, not yet decided.
+Also offered: argb32 as Chrono Trigger's default video format; point BCDUpdateCheck at the fork's source
+(it reads thebcd69.github.io's, which is at 634).
+
+## Touch editor: a drag no longer opens the panel (build 641)
+
+Reported 2026-11-08: editing controls upright on the Duo's large screen, a dragged button went under the control's panel.
+`BCDTouchControl.editDrag` (BCDTouchControls.swift) selected the control on touch-down, which opens the panel docked
+top or bottom (BCDTouchPanelPlacement, re-docked live as the control moves). Now a touch that moves 8 pt or more is a
+drag: any open panel is put away (`select(nil)`) while the control moves, and on release the panel comes back only if it
+was this control's (docked clear of its new place; its tab resets to the default for the action). A touch that never
+moves that far is a press and selects it on release. A locked control still moves nothing and is selected on release.
+The pinch still resizes the selected control, so a control is pressed before it is pinched. check-bcd-touch.py passes.
 
 ## Mobile data and Steam Cloud (build 639)
 
