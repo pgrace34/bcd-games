@@ -164,7 +164,13 @@ Ideas discussed with the user, none started:
 - Touch layouts per screen shape (positions are fractions of the screen; one layout serves open, split and cover).
 - Do not add fork-only rules to recommended/recommendations.json: the app takes BCD's online list only if it keeps
   every built-in rule, so a fork-only rule would make it reject BCD's updates.
-- Star Force (Enigma crash): the user means to send logs; none had arrived by 2026-11-10 08:27.
+- Mega Man Star Force Legacy Collection (64-bit, Enigma): two logs of build 631 (2026-11-06), same stop both times:
+  c0000005 reading 0 at 0x14fb15761, in the first block after the entry point 0x14fb156c4. State there: RCX=0,
+  RAX=0x14fb15d53 (end pointer), RBP=image base, i.e. the entry stub's decrypt loop had just finished; the previous
+  host block exits to 0x14fb15750 / 0x14fb15761, both mid-instruction in the now-decrypted code (0x14fb1575f is
+  `mov rax, 0xb`). The emulator translated the bytes after the loop before they were decrypted, the same fault as
+  recommendations.json's resident-evil-5 rule. To try (no build needed): `env.FEX_MULTIBLOCK = 0` and
+  `env.MADEIRA_X86_FAULT_DUMP = 1` in the game's own settings; the user was asked to test and send a log.
 
 ## Mobile data and Steam Cloud (build 639)
 
