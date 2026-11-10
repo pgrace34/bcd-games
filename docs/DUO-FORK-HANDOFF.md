@@ -211,6 +211,15 @@ does not re-sync until the next size change.
   `d3d12-shader-cache-none = 1` (the shader-cache feature answers NONE, so an engine that asks first skips GetCachedBlob).
 - Runs to ask for: (1) current settings; (2) + `d3d12-pso-cached-blob-size = 65536`; (3) cached-blob off and
   `d3d12-shader-cache-none = 1`. Read: `[pso-blob]`, `[guest-ctx] ret #n`, `[guest-ctx] reg`.
+- Result (2026-11-10 12:11-12:14, all on 643): the same fault at exe rva 0x6a9511c in all three runs: 16-byte blob,
+  65536-byte blob, and shader cache NONE (no GetCachedBlob call at all). The pipeline cache is not the cause.
+  `[guest-ctx] reg`: the map (rdi) is the game's own pointer-keyed hash map, enabled (byte at +4 = 1) but EMPTY
+  (16 buckets, 0 entries); the key (rbx) is a madeira_d3d12 object whose layout is `struct mad_resource`: refs 1,
+  serial 46, placed in a heap at offset 0x440000, size 0xe000. So the game looks up placed resource #46 in a table of
+  resources it fills itself, and nothing was ever added. Refusals in that log (Device9 / CommandQueue1 /
+  GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
+  found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
+  the round ended in the "middle case" agreed with the user, and Star Force is parked here.
 
 ## Mobile data and Steam Cloud (build 639)
 
