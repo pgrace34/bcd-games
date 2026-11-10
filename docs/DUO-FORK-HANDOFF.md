@@ -171,6 +171,12 @@ Ideas discussed with the user, none started:
   `mov rax, 0xb`). The emulator translated the bytes after the loop before they were decrypted, the same fault as
   recommendations.json's resident-evil-5 rule. To try (no build needed): `env.FEX_MULTIBLOCK = 0` and
   `env.MADEIRA_X86_FAULT_DUMP = 1` in the game's own settings; the user was asked to test and send a log.
+  Result (build 641, 2026-11-10 08:34): FEX_MULTIBLOCK = 0 gets past the stub. The game runs 13 s, creates its D3D12
+  device, a 1920x1080 swapchain and two compute pipelines (CS_ZeroFill, CS_FastClear), calls
+  ID3D12PipelineState::GetCachedBlob (unimplemented, E_NOTIMPL) and in the same instant starts its own CrashReport.exe
+  and exits 0 (black window). Same pattern as the resident-evil-requiem rules; next to try in the game's settings:
+  `d3d12-pso-cached-blob = 1` (Direct3D 12 > Cached blob of a pipeline). Side notes from that log: the JIT pool was
+  shrunk to 256 MB ("no hole fits a 896MB pool") and CrashReport.exe then failed to load SHELL32 (pool exhausted).
 
 ## Mobile data and Steam Cloud (build 639)
 
