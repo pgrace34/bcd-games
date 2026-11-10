@@ -5357,6 +5357,7 @@ jobs:
             they no longer stutter or step back a few frames (Chrono Trigger's anime movies).
           - In the touch-control editor, dragging a control moves it without opening its panel, so the panel no longer covers
             it on an upright screen; a press (touch and let go) opens the panel.
+          - The in-app update check reads the BCD Duo fork's own source, so it reports the fork's new builds.
           - $HOW
           NOTES
           # The tag follows the commit the IPA was built from: a release already there under this build number (an earlier commit

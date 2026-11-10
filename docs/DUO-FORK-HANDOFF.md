@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-08 (build 641). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-10 (build 642). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **641**). The release is tagged `v0.1.<build>`.
+  **642**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -147,6 +147,24 @@ drag: any open panel is put away (`select(nil)`) while the control moves, and on
 was this control's (docked clear of its new place; its tab resets to the default for the action). A touch that never
 moves that far is a press and selects it on release. A locked control still moves nothing and is selected on release.
 The pinch still resizes the selected control, so a control is pressed before it is pinched. check-bcd-touch.py passes.
+
+## Cleanups (build 642) and ideas not yet done (2026-11-10)
+
+Build 642: [mf-diag] trimmed to its anomaly lines (`ROUTINE` in tools/patch-wine-mf-video-diag.py lists the edits left
+out; empty it to get the per-sample lines back); `BCDUpdateCheck.sourceURL` reads the fork's source
+(pgrace34.github.io/bcd-games/source.json; check-update-check.py updated); the foldable settings note no longer says
+"not tried on a real device". User confirmed build 641's drag change was requested and builds 637-641 work.
+
+Ideas discussed with the user, none started:
+- Video default: the decoder's default output is NV12 and DXMT's D3D9 has no NV12, so Chrono Trigger needs
+  `env.MADEIRA_WG_VIDEO_FORMAT = argb32` by hand. A general fix would let a D3D9 EVR game negotiate a format it can show.
+  First step: the user clears that setting on a current build, plays the opening movie and sends the log.
+- Upstreaming: the session-order, StretchRect-plain, plain-lock, cloud-before-JIT and editor-drag changes to
+  thebcd69/bcd-games; the session faults also exist in Wine 11.21's dlls/mf/session.c. The user opens the PRs.
+- Touch layouts per screen shape (positions are fractions of the screen; one layout serves open, split and cover).
+- Do not add fork-only rules to recommended/recommendations.json: the app takes BCD's online list only if it keeps
+  every built-in rule, so a fork-only rule would make it reject BCD's updates.
+- Star Force (Enigma crash): the user means to send logs; none had arrived by 2026-11-10 08:27.
 
 ## Mobile data and Steam Cloud (build 639)
 

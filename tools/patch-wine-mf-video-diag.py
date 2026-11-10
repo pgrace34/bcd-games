@@ -206,22 +206,12 @@ EDITS.append(("dlls/evr/presenter.c", "presenter check_queue present/requeue",
                     ERR("[mf-diag] presenter BACKWARDS: shows pts %d ms after pts %d ms (clock %d ms, queued %u) #%ld t=%lu\\n",
                         (int)(pts / 10000), (int)(last_pts / 10000), (int)(clocktime / 10000), presenter->thread.queue.used, n,
                         GetTickCount());
-                if (n <= 30 || !(n % 30))
-                    ERR("[mf-diag] presenter shows #%ld pts %d ms clock %d ms ahead %d ms threshold %d ms queued %u t=%lu\\n", n,
-                        (int)(pts / 10000), (int)(clocktime / 10000), (int)(delta / 10000),
-                        (int)(presenter->frame_time_threshold / 10000), presenter->thread.queue.used, GetTickCount());
-                else if (delta < -1000 * 10000 && InterlockedIncrement(&late) <= 32)
+                if (delta < -1000 * 10000 && InterlockedIncrement(&late) <= 32)
                     ERR("[mf-diag] presenter shows #%ld over 1 s late: pts %d ms clock %d ms t=%lu\\n", n, (int)(pts / 10000),
                         (int)(clocktime / 10000), GetTickCount());
                 last_pts = pts;
             }
-            else if (present)
-            {
-                LONG n = InterlockedIncrement(&shown);
-                if (n <= 8)
-                    ERR("[mf-diag] presenter shows #%ld with no clock t=%lu\\n", n, GetTickCount());
-            }
-            else if (wait >= 100 && InterlockedIncrement(&waits) <= 64)
+            else if (!present && wait >= 100 && InterlockedIncrement(&waits) <= 64)
                 ERR("[mf-diag] presenter waits %u ms: pts %d ms clock %d ms queued %u t=%lu\\n", wait, (int)(pts / 10000),
                     (int)(clocktime / 10000), presenter->thread.queue.used, GetTickCount());
         }
@@ -250,6 +240,14 @@ EDITS.append(("dlls/evr/presenter.c", "presenter allocator empty",
         }
 """))
 
+
+# Build 642 (2026-11-10): the bug this was written for is fixed (build 640), so only the lines that mean something went
+# wrong stay: frames shown out of order or over 1 s late, long waits, samples waiting in front of a transform, and
+# samples dropped, ignored or delivered unasked. The routine per-sample lines (source samples, requests, the presenter's
+# allocator running empty, which is normal back-pressure) are left out; empty ROUTINE to get them back.
+ROUTINE = {"media_stream_send_sample queue", "source stream sample request", "session_request_sample tail",
+           "presenter allocator empty"}
+EDITS = [e for e in EDITS if e[1] not in ROUTINE]
 
 # tools/patch-wine-mf-session-order.py (run first) rewrites transform_node_push_sample's sample branch; on that code the
 # queued-input line goes after the branch, logging whenever the input queue is not empty.

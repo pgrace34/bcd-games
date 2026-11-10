@@ -12,7 +12,7 @@ import Foundation
 // env.MADEIRA_UPDATE_CHECK = 0 turns it off. The core is Foundation only (tests/host/check-update-check.py).
 
 enum BCDUpdateCheck {
-    static let sourceURL = URL(string: "https://thebcd69.github.io/bcd-games/source.json")!
+    static let sourceURL = URL(string: "https://pgrace34.github.io/bcd-games/source.json")   // BCD Duo fork (2026-11-10): the fork's own source; upstream's never lists the fork's builds!
     /// The source file is about 7 KB; anything far larger is not it.
     static let maxBytes = 256 << 10
     /// The local day of the last answer from the source (yyyy-MM-dd).

@@ -89,7 +89,7 @@ else:
     print("SKIP: no swiftc; the source checks below still run")
 
 # ---- Part B: the source ------------------------------------------------------------------------
-check('URL(string: "https://thebcd69.github.io/bcd-games/source.json")' in core, "it reads BCD's own AltStore source, nothing else")
+check('URL(string: "https://pgrace34.github.io/bcd-games/source.json")' in core, "it reads the BCD Duo fork's own AltStore source, nothing else")
 check("URLSessionConfiguration.ephemeral" in core and "urlCache = nil" in core and "timeoutIntervalForResource = 30" in core
       and "http.url?.host == sourceURL.host" in core and "data.count <= maxBytes" in core,
       "the request: no cache, short timeouts, no other host, a size cap")

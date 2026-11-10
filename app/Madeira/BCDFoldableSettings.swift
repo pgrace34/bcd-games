@@ -23,7 +23,7 @@ struct BCDFoldableSettingsRow: View {
 
     private var note: String {
         let base = "While a game runs, the touch controls and the picture follow the screen when the phone is folded or "
-            + "unfolded, and new games start with the inner screen's shape. It has not been tried on a real device yet."
+            + "unfolded, and new games start with the inner screen's shape."
         return on == BCDFoldable.active ? base : base + " Applies the next time BCD starts."
     }
 }
