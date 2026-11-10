@@ -177,6 +177,15 @@ Ideas discussed with the user, none started:
   and exits 0 (black window). Same pattern as the resident-evil-requiem rules; next to try in the game's settings:
   `d3d12-pso-cached-blob = 1` (Direct3D 12 > Cached blob of a pipeline). Side notes from that log: the JIT pool was
   shrunk to 256 MB ("no hole fits a 896MB pool") and CrashReport.exe then failed to load SHELL32 (pool exhausted).
+  Result with d3d12-pso-cached-blob = 1 (build 641, 08:39): GetCachedBlob answers, the game goes on (1434 compute
+  shaders converted, 0 unimplemented D3D12 calls) and ~0.1 s after the blob answer thread 00d0 faults in the game's own
+  code: c0000005 reading 0x18 at exe rva 0x6a9511c. That is the tail of a hash-map lookup (function at rva 0x6a95040:
+  map in rcx, key pointer in rdx, node = {next, hash, key, value}); a miss falls into `mov rax,[rax+18h]` with rax = 0,
+  so the game assumes the key is present. Caller (ret rva 0x6a3f842): `if (obj[0x130]) v = lookup(obj[0x100]->[8],
+  obj[0x90]->[0x18])`. The unhandled-exception filter then starts CrashReport.exe; frames=0. No volatile metadata is
+  loaded for the exe (full TSO), so ordering is not the suspect. Cause unknown; no existing switch covers it. The user
+  was told this is the uncertain point: finding it needs diagnostic builds (deeper guest stack, what the game does with
+  the blob) with no promise of a fix. Parked unless the user asks to continue.
 
 ## Mobile data and Steam Cloud (build 639)
 
