@@ -690,6 +690,15 @@ OVERLAY = {
                         "the saved form is 16 bytes). For an Unreal title that ends in a fatal error when the call "
                         "fails (Returnal); GTA V and Red Dead Redemption 2 call it and carry on without. Read once "
                         "per game start."},
+    "d3d12-pso-cached-blob-size": {"category": "Direct3D 12", "title": "Cached blob of a pipeline: size in bytes",
+                "kind": "int", "default": "0",
+                "note": "BCD Duo fork, experiment. Default 0: the cached blob is 16 bytes. With \"Cached blob of a "
+                        "pipeline\" on, a larger number (up to 1048576) makes ID3D12PipelineState::GetCachedBlob answer "
+                        "that many bytes, for an engine that expects a blob of a real driver's size. Read once per game start."},
+    "d3d12-shader-cache-none": {"category": "Direct3D 12", "title": "Report no shader cache",
+                "kind": "bool", "default": "0",
+                "note": "BCD Duo fork, experiment. Default off: the runtime reports the single-pipeline shader cache. 1: it "
+                        "reports none, so an engine that asks first does not call GetCachedBlob at all."},
     "d3d12-pso-cached-blob": {"category": "Direct3D 12", "title": "Cached blob of a pipeline",
                 "kind": "bool", "default": "0",
                 "note": "Default off: ID3D12PipelineState::GetCachedBlob fails (E_NOTIMPL), as before. 1: it answers a "

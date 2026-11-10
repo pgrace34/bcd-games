@@ -300,7 +300,7 @@ struct BCDGraphicsSettings<Backend: BCDGraphicsBackend>: View {
                 }
             }
             if BCDFoldableDevice.isThisDevice {   // madeira-bcd foldable (experimental, BCDFoldable.swift): the foldable iPhone's Settings only; every other device's Graphics page is unchanged
-                BCDSettingsGroup(title: "Foldable iPhone") { BCDFoldableSettingsRow(); BCDDuoSplitSettingsRow() }   // BCD Duo fork (modified 2026-11-06): the split screen's switch
+                BCDSettingsGroup(title: "Foldable iPhone") { BCDFoldableSettingsRow(); BCDDuoSplitSettingsRow(); BCDDuoLayoutsSettingsRow() }   // BCD Duo fork (modified 2026-11-06): the split screen's switch
             }
             if backend.restartNeeded { BCDSettingsNotice(text: bcdSettingsRestartNote) }
             // OpenGL is a game's choice (its page, Options, Direct3D): this says so, once, where graphics are chosen for every game.

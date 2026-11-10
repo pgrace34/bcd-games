@@ -5358,6 +5358,9 @@ jobs:
           - In the touch-control editor, dragging a control moves it without opening its panel, so the panel no longer covers
             it on an upright screen; a press (touch and let go) opens the panel.
           - The in-app update check reads the BCD Duo fork's own source, so it reports the fork's new builds.
+          - On the foldable iPhone each game keeps separate touch controls for each screen shape (inner screen sideways or
+            upright, split screen, cover screen) and switches when the phone is folded, unfolded or turned
+            (Settings > Graphics > Foldable iPhone).
           - $HOW
           NOTES
           # The tag follows the commit the IPA was built from: a release already there under this build number (an earlier commit

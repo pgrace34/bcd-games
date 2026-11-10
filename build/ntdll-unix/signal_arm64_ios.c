@@ -11920,6 +11920,22 @@ static void ios_guest_ctx_hex( const char *what, uint64_t base, uint64_t from, i
     }
 }
 
+/* BCD Duo fork (2026-11-10): the 96 bytes a live guest register points at, and whether its first qword is an address
+ * inside a loaded image (an object's vtable: its rva names the class from one run to the next). */
+static void ios_guest_ctx_reg( const char *name, uint64_t v )
+{
+    uint64_t q[12], b;
+    uint32_t sz = 0;
+    char hex[12 * 17 + 1];
+    int k;
+
+    if (v < 0x10000 || v >= 0x8000000000ull || !ios_guest_ctx_read( v, q, sizeof(q) )) return;
+    for (k = 0; k < 12; k++) snprintf( hex + k * 17, 18, "%016llx ", (unsigned long long)q[k] );
+    ERR("  [guest-ctx] reg %s=%p: %s\n", name, (void *)v, hex);
+    if (q[0] >= 0x10000 && q[0] < 0x8000000000ull && (b = ios_guest_ctx_image( q[0], &sz )))
+        ERR("  [guest-ctx] reg %s: its first qword is in image %p, rva %#llx\n", name, (void *)b, (unsigned long long)(q[0] - b));
+}
+
 static int ios_guest_ctx_is_call( uint64_t ret )
 {
     uint8_t c[7];
@@ -11938,9 +11954,13 @@ static int ios_guest_ctx_is_call( uint64_t ret )
 static void ios_guest_fault_context( uint64_t rip, uint64_t rsp, uint64_t gregs_rsp )
 {
     static int count = -1;
-    uint64_t stack[256], base;
+    /* BCD Duo fork (2026-11-10): 4096 slots (32 KB) instead of 256. Mega Man Star Force's faulting function is called
+     * from one with a frame of 2.7 KB+, so 2 KB of stack held a single return address. Static: this runs on the
+     * signal stack; the 4-dump cap below keeps it to the first faults. */
+    static uint64_t stack[4096];
+    uint64_t base;
     uint32_t size = 0;
-    int i, found = 0;
+    int i, found = 0, slots = 0;
 
     if (count < 0)
     {
@@ -11955,12 +11975,16 @@ static void ios_guest_fault_context( uint64_t rip, uint64_t rsp, uint64_t gregs_
         base ? (unsigned long long)(rip - base) : 0ull, (void *)rsp);
     if (base) ios_guest_ctx_hex( "rip", base, rip - 0x180, 0x200 );
 
-    if (!ios_guest_ctx_read( rsp, stack, sizeof(stack) ))
+    if (!ios_guest_ctx_read( rsp, stack, 256 * 8 ))
     {
-        if (gregs_rsp == rsp || !ios_guest_ctx_read( gregs_rsp, stack, sizeof(stack) )) return;
+        if (gregs_rsp == rsp || !ios_guest_ctx_read( gregs_rsp, stack, 256 * 8 )) return;
         ERR("  [guest-ctx] live rsp unreadable, using saved rsp=%p\n", (void *)gregs_rsp);
+        rsp = gregs_rsp;
     }
-    for (i = 0; i < 256 && found < 16; i++)
+    /* the rest of the stack in 2 KB pieces, up to its top (the first piece that cannot be read) */
+    for (slots = 256; slots < 4096; slots += 256)
+        if (!ios_guest_ctx_read( rsp + slots * 8ull, stack + slots, 256 * 8 )) break;
+    for (i = 0; i < slots && found < 24; i++)
     {
         uint64_t q = stack[i], b;
         uint32_t sz = 0;
@@ -12571,6 +12595,16 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
                             else
                                 ERR("  [guest-exact] ml885 block=%p rip=%p (bytes unreadable)\n", (void*)bb, (void*)xrip);
                             ios_guest_fault_context( xrip, REGn_sig(23, context), cs[5] );   /* ml1291 */
+                            {   /* BCD Duo fork (2026-11-10): what the live guest registers point at (first 4 faults) */
+                                static const struct { const char *name; int reg; } gr[] =
+                                    { {"rax", 8}, {"rcx", 0}, {"rdx", 1}, {"rbx", 27}, {"rsi", 25}, {"rdi", 26},
+                                      {"r8", 2}, {"r9", 3}, {"r12", 19}, {"r13", 20}, {"r14", 21}, {"r15", 22} };
+                                static int reg_dumps;
+                                unsigned int k;
+                                if (reg_dumps++ < 4)
+                                    for (k = 0; k < sizeof(gr) / sizeof(gr[0]); k++)
+                                        ios_guest_ctx_reg( gr[k].name, REGn_sig(gr[k].reg, context) );
+                            }
                         }
                         else ERR("  [guest-exact] ml885 block=%p unresolved: %s\n", (void*)bb, why);
                     }

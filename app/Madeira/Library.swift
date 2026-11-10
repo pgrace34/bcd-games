@@ -191,6 +191,10 @@ struct LibraryEntry: Codable, Identifiable {
     /// Session menu shows it and an edit is written back to it; nil for controls
     /// no layout holds. Older files have none.
     var controlLayout: String?
+    /// BCD Duo fork (added 2026-11-10): the game's controls per screen shape (BCDDuoLayouts) and the layout each came from.
+    /// Older files have none; `controls` stays the set last on screen.
+    var controlShapes: [String: [TouchControl]]?
+    var controlShapeLayouts: [String: String]?
     var lastPlayed: Date?
     var graphicsAPI: String?
     var folderBytes: Int64?
@@ -1280,6 +1284,11 @@ final class LibraryModel: ObservableObject {
                 controls.layoutID = ControlPresetsModel.shared.store.resolvedID(entry.controlLayout)
             }
         }
+        // BCD Duo fork (2026-11-10): the game's controls for each screen shape; the shape on screen now takes its own.
+        controls.shapeKey = nil
+        controls.shapeStash = BCDDuoLayouts.on ? (entry.controlShapes ?? [:]) : [:]
+        controls.shapeLayouts = BCDDuoLayouts.on ? (entry.controlShapeLayouts ?? [:]) : [:]
+        BCDDuoLayouts.sync(session: true)
         controls.visible = entry.touchControls
         controls.sizeScale = min(max(entry.controlSize ?? 1, 0.5), 2)
         // madeira-bcd 578 (lead): the built-in default is NOT put on screen at session start: a player may keep touch
@@ -1737,6 +1746,13 @@ final class LibraryModel: ObservableObject {
         if let id = current, var entry = entries.first(where: { $0.id == id }) {
             entry.controls = controls.controls
             if ControlPresetsModel.enabled { entry.controlLayout = controls.layoutID }
+            if BCDDuoLayouts.on, let shape = controls.shapeKey {   // BCD Duo fork (2026-11-10): every shape's controls
+                var shapes = controls.shapeStash, layouts = controls.shapeLayouts
+                shapes[shape] = controls.controls
+                layouts[shape] = controls.layoutID
+                entry.controlShapes = shapes
+                entry.controlShapeLayouts = layouts.isEmpty ? nil : layouts
+            }
             entry.touchControls = controls.visible
             entry.fpsMode = fpsMode; entry.performance = performance
             entry.overlayFields = overlayFields
@@ -1795,6 +1811,7 @@ final class LibraryModel: ObservableObject {
         padMouseVertical = 1
         let controls = TouchControlsModel.shared
         controls.editing = false; controls.selected = nil
+        controls.shapeKey = nil; controls.shapeStash = [:]; controls.shapeLayouts = [:]   // BCD Duo fork: the game's, not the app's
         controls.controls = savedControls; controls.visible = savedVisible; controls.sizeScale = savedSize
         if ControlPresetsModel.enabled { controls.layoutID = savedLayout }
         current = nil; activeEntry = nil; menu = false; sessionMessage = ""

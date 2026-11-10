@@ -2748,6 +2748,33 @@ final class TouchControlsModel: ObservableObject {
     var needsDefaultLayout = false
     private var editBaseline: [TouchControl] = []
 
+    // BCD Duo fork (added 2026-11-10): one set of controls per screen shape (BCDDuoLayouts, BCDDisplayLive.swift). Transient:
+    // LibraryModel loads them from the game at session start and writes them back in saveCurrentProfile.
+    /// The shape `controls` belong to; nil until the first sync of a session.
+    var shapeKey: String?
+    /// This game's controls for the shapes not on screen, and the named layout each came from.
+    var shapeStash: [String: [TouchControl]] = [:]
+    var shapeLayouts: [String: String] = [:]
+
+    /// The screen has shape `key` now: put the controls on screen away under the old shape, bring back this shape's own.
+    func shapeChanged(to key: String) {
+        guard key != shapeKey else { return }
+        if editing { editing = false; selected = nil }   // an edit belongs to the shape it was made on
+        let old = shapeKey
+        if let old {
+            shapeStash[old] = controls
+            shapeLayouts[old] = layoutID
+        }
+        shapeKey = key
+        let mine = shapeStash[key]
+        if let mine, mine != controls {
+            controls = mine
+            if ControlPresetsModel.enabled { layoutID = ControlPresetsModel.shared.store.resolvedID(shapeLayouts[key]) }
+        }
+        LogStore.shared.log("[duo-layouts] shape \(old ?? "none") -> \(key): "
+                            + (mine == nil ? "no controls of its own yet, keeping the \(controls.count) on screen" : "its own \(controls.count) controls"))
+    }
+
     /// One size for the whole layout (0.5...2), multiplying each control's own
     /// pinch `scale`. A library entry keeps its own (Control size) and sets it
     /// for its session; transient, so the developer interface stays at 1.

@@ -43,3 +43,21 @@ struct BCDDuoSplitSettingsRow: View {
         }
     }
 }
+
+/// BCD Duo fork (added 2026-11-10): Settings > Graphics > Foldable iPhone, touch controls per screen shape (BCDDuoLayouts,
+/// BCDDisplayLive.swift). Applies from the next change of shape or the next game start.
+struct BCDDuoLayoutsSettingsRow: View {
+    @State private var on = BCDDuoLayouts.on
+
+    var body: some View {
+        BCDSettingsToggleRow(id: BCDSettingsID.control(.graphics, "duo-layouts"), title: "Separate touch controls for each screen shape",
+                             note: "Each game keeps its own touch controls for the inner screen sideways, the inner screen upright, "
+                                + "the split screen and the cover screen, and switches between them when the phone is folded, "
+                                + "unfolded or turned. A shape starts from the controls on screen the first time it is used. "
+                                + "Off, one set of controls is stretched to every shape.", isOn: on) { value in
+            BCDDuoLayouts.store(value)
+            on = value
+            fputs("[foldable] controls per screen shape \(value ? "on" : "off")\n", stderr)
+        }
+    }
+}

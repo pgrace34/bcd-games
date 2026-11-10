@@ -29,6 +29,7 @@ enum BCDDisplayWatch {
         guard size.width > 0, size.height > 0, size != lastSize else { return }
         let first = lastSize == .zero
         lastSize = size
+        BCDDuoLayouts.size = size   // BCD Duo fork (2026-11-10): per-shape touch layouts
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
         var choicesChanged = false
@@ -39,6 +40,7 @@ enum BCDDisplayWatch {
         MetalBackedView.refreshDisplayMode(reason: "display-" + reason)
         // The touch layout is laid out for the key window (ControlPresetsModel.currentScreen), so only while there is one:
         // without it currentScreen answers a reference phone, and a layout fitted to that would be saved.
+        BCDDuoLayouts.sync(session: LibraryModel.shared.current != nil)   // BCD Duo fork: before a built-in layout is fitted again
         if scene?.windows.contains(where: { $0.isKeyWindow && $0.bounds.width > 0 }) == true {
             ControlPresetsModel.shared.displayChanged(screen: ControlPresetsModel.currentScreen())
         }
@@ -62,5 +64,36 @@ struct BCDDisplayWatchModifier: ViewModifier {
             }
             .ignoresSafeArea()
         }
+    }
+}
+
+/// BCD Duo fork (added 2026-11-10): one set of touch controls per screen shape, per game. A control's place is a fraction of
+/// the screen, so one layout stretched over the inner screen sideways, the upright split screen and the cover screen fits
+/// none of them well. While a library game runs, the controls on screen belong to the shape the screen has now; when the
+/// shape changes (fold, unfold, turn) they are put away under the old shape and the new shape's own controls come back.
+/// A shape with no controls of its own yet starts from the ones on screen, and edits from then on stay with that shape.
+/// Kept with the game (LibraryEntry.controlShapes). Only on the foldable iPhone (BCDFoldable.active) and only while the
+/// switch is on (Settings > Graphics > Foldable iPhone); off, or on any other device, nothing here runs.
+enum BCDDuoLayouts {
+    static let key = "bcd.duo.layouts.per-shape"
+    static var on: Bool { BCDFoldable.active && UserDefaults.standard.string(forKey: key) != "0" }
+    static func store(_ value: Bool) { UserDefaults.standard.set(value ? "1" : "0", forKey: key) }
+    /// The root view's size, from BCDDisplayWatch.
+    static var size = CGSize.zero
+
+    /// The inner display is 626 to 669 points on its short side, the cover display 466 (BCDDuoSplit.minimumWidth).
+    static func shape(width: Double, height: Double, split: Bool) -> String {
+        let inner = min(width, height) >= BCDDuoSplit.minimumWidth
+        if width >= height { return inner ? "wide" : "cover-wide" }
+        if !inner { return "cover" }
+        return split ? "split" : "upright"
+    }
+
+    /// The controls on screen follow the screen's shape. `session`: a library game runs.
+    static func sync(session: Bool) {
+        guard on, session, size.width > 0, size.height > 0 else { return }
+        let w = Double(size.width), h = Double(size.height)
+        let split = BCDDuoSplit.applies(active: BCDFoldable.active, on: BCDDuoSplit.on, session: session, width: w, height: h)
+        TouchControlsModel.shared.shapeChanged(to: shape(width: w, height: h, split: split))
     }
 }

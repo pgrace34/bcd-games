@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-10 (build 642). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-10 (build 643). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **642**). The release is tagged `v0.1.<build>`.
+  **643**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -186,6 +186,31 @@ Ideas discussed with the user, none started:
   loaded for the exe (full TSO), so ordering is not the suspect. Cause unknown; no existing switch covers it. The user
   was told this is the uncertain point: finding it needs diagnostic builds (deeper guest stack, what the game does with
   the blob) with no promise of a fix. Parked unless the user asks to continue.
+
+## Build 643 (2026-11-10): per-shape touch layouts and one Star Force diagnostic round
+
+Build 642 was cancelled by this push; 643 contains it.
+
+**Touch controls per screen shape** (asked for by the user). `BCDDuoLayouts` (BCDDisplayLive.swift): shapes `wide`,
+`cover-wide`, `upright`, `split`, `cover` from the root view's size (inner display >= 600 pt on its short side) and
+BCDDuoSplit. In a library session `TouchControlsModel.shapeChanged(to:)` puts the controls on screen away under the old
+shape and brings back the new shape's own (a shape with none yet keeps the ones on screen). Called from
+BCDDisplayWatch.rootSizeChanged (before ControlPresetsModel.displayChanged) and at session start; kept per game in
+`LibraryEntry.controlShapes` / `controlShapeLayouts` (written by saveCurrentProfile); cleared at session end. Gate:
+BCDFoldable.active and the switch `bcd.duo.layouts.per-shape` (Settings > Graphics > Foldable iPhone, default on).
+Log: `[duo-layouts] shape A -> B: ...`. Not compiled locally. Not handled: turning the split-screen switch mid-session
+does not re-sync until the next size change.
+
+**Star Force diagnostics (the one round agreed with the user; stop after it unless it points at a fix):**
+- signal_arm64_ios.c: the guest stack walk reads 32 KB instead of 2 KB (the faulting function's caller has a 2.7 KB
+  frame, so only one return address was found) and reports up to 24 returns; `[guest-ctx] reg <name>=...` dumps the 96
+  bytes each live guest register points at, plus the image rva of its first qword (a vtable).
+- madeira_d3d12.c: `[pso-blob]` lines: every GetCachedBlob call (pipeline, result, size) and any cached blob handed
+  back to CreateGraphics/ComputePipelineState.
+- Two experiments (game settings, Direct3D 12): `d3d12-pso-cached-blob-size = N` (blob of N bytes instead of 16) and
+  `d3d12-shader-cache-none = 1` (the shader-cache feature answers NONE, so an engine that asks first skips GetCachedBlob).
+- Runs to ask for: (1) current settings; (2) + `d3d12-pso-cached-blob-size = 65536`; (3) cached-blob off and
+  `d3d12-shader-cache-none = 1`. Read: `[pso-blob]`, `[guest-ctx] ret #n`, `[guest-ctx] reg`.
 
 ## Mobile data and Steam Cloud (build 639)
 

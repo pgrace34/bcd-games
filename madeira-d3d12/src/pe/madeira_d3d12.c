@@ -12007,6 +12007,15 @@ static HRESULT STDMETHODCALLTYPE device_CheckFeatureSupport(ID3D12Device *This,
         D3D12_FEATURE_DATA_SHADER_CACHE *c = data;
         if (size < sizeof *c) return E_INVALIDARG;
         c->SupportFlags = D3D12_SHADER_CACHE_SUPPORT_SINGLE_PSO;
+        /* BCD Duo fork (2026-11-10), experiment, opt-in d3d12-shader-cache-none = 1: report no shader cache at all, so an
+         * engine that asks first never calls GetCachedBlob (Mega Man Star Force Legacy Collection faults in its own code
+         * 0.1 s after the placeholder blob is answered). */
+        if (mad_cfg_int_pe("d3d12-shader-cache-none", 0)) {
+            static LONG said;
+            c->SupportFlags = 0;   /* D3D12_SHADER_CACHE_SUPPORT_NONE */
+            if (InterlockedIncrement(&said) == 1)
+                d3d12_log("[madeira-d3d12] [pso-blob] d3d12-shader-cache-none = 1: the shader cache feature answers NONE\n");
+        }
         return S_OK;
     }
     case D3D12_FEATURE_COMMAND_QUEUE_PRIORITY: {
@@ -19018,10 +19027,21 @@ static void mad_dtess_convert(struct mad_device *d, struct mad_rootsig *rs, stru
 
 static HRESULT device_CreateGraphicsPipelineState_impl(ID3D12Device *This,
         const D3D12_GRAPHICS_PIPELINE_STATE_DESC *desc, REFIID riid, void **out);
+/* BCD Duo fork (2026-11-10): log a cached blob a game hands back when it creates a pipeline (it is never used). */
+static void mad_psoblob_note(const char *kind, const void *blob, SIZE_T size) {
+    static LONG n;
+    LONG k;
+    if (!blob || !size) return;
+    k = InterlockedIncrement(&n);
+    if (k <= 24 || !(k % 256))
+        d3d12_log("[madeira-d3d12] [pso-blob] %s was handed a cached blob: %llu bytes%s (#%ld)\n", kind, (unsigned long long)size,
+                  (size >= 8 && !memcmp(blob, "MADPSOC1", 8)) ? ", this runtime's placeholder" : ", not this runtime's", (long)k);
+}
 static HRESULT STDMETHODCALLTYPE device_CreateGraphicsPipelineState(ID3D12Device *This,
         const D3D12_GRAPHICS_PIPELINE_STATE_DESC *desc, REFIID riid, void **out) {   /* madeira-bcd: timed */
     LONG64 t0 = mad_qpc();
     HRESULT hr = device_CreateGraphicsPipelineState_impl(This, desc, riid, out);
+    if (desc) mad_psoblob_note("CreateGraphicsPipelineState", desc->CachedPSO.pCachedBlob, desc->CachedPSO.CachedBlobSizeInBytes);
     LONG n;
     InterlockedExchangeAdd64(&g_pt_gfx, mad_qpc() - t0);
     n = InterlockedIncrement(&g_pn_gfx);
@@ -19579,6 +19599,7 @@ static HRESULT STDMETHODCALLTYPE device_CreateComputePipelineState(ID3D12Device 
         const D3D12_COMPUTE_PIPELINE_STATE_DESC *desc, REFIID riid, void **out) {   /* madeira-bcd: timed */
     LONG64 t0 = mad_qpc();
     HRESULT hr = device_CreateComputePipelineState_impl(This, desc, riid, out);
+    if (desc) mad_psoblob_note("CreateComputePipelineState", desc->CachedPSO.pCachedBlob, desc->CachedPSO.CachedBlobSizeInBytes);
     InterlockedExchangeAdd64(&g_pt_cs, mad_qpc() - t0);
     InterlockedIncrement(&g_pn_cs);
     return hr;
@@ -21126,6 +21147,37 @@ static HRESULT STDMETHODCALLTYPE pso_GetCachedBlob(ID3D12PipelineState *This, ID
     mad_psoblob_fill(data);
     return mad_make_blob(data, MAD_PSOBLOB_SIZE, (ID3D10Blob **)blob);
 }
+/* BCD Duo fork (2026-11-10): GetCachedBlob with a trail in the log, and an experiment: d3d12-pso-cached-blob-size = N
+ * (with d3d12-pso-cached-blob = 1) answers N bytes (the magic, the size, zeros; at most 1 MB) instead of 16, for an engine
+ * that expects a blob of a real driver's size. Every call logs the pipeline, the result and the size (first 24, then
+ * every 256th). The vtable slot points here; pso_GetCachedBlob above is unchanged and answers when no size is set. */
+static HRESULT STDMETHODCALLTYPE pso_GetCachedBlob_duo(ID3D12PipelineState *This, ID3DBlob **blob) {
+    static LONG n;
+    static int big = -1;
+    LONG k = InterlockedIncrement(&n);
+    SIZE_T size = 0;
+    HRESULT hr;
+    if (big < 0) {
+        long long v = mad_cfg_int_pe("d3d12-pso-cached-blob-size", 0);
+        big = v > (1 << 20) ? (1 << 20) : v < 0 ? 0 : (int)v;
+    }
+    if (big > MAD_PSOBLOB_SIZE && blob && mad_psoblob_on()) {
+        unsigned char *data = calloc(1, big);
+        *blob = NULL;
+        if (!data) hr = E_OUTOFMEMORY;
+        else {
+            memcpy(data, MAD_PSOBLOB_MAGIC, 8);
+            memcpy(data + 8, &big, sizeof big);
+            hr = mad_make_blob(data, big, (ID3D10Blob **)blob);
+            free(data);
+        }
+    } else hr = pso_GetCachedBlob(This, blob);
+    if (SUCCEEDED(hr) && blob && *blob) size = (*blob)->lpVtbl->GetBufferSize(*blob);
+    if (k <= 24 || !(k % 256))
+        d3d12_log("[madeira-d3d12] [pso-blob] GetCachedBlob #%ld pipeline %p -> hr %#lx, %llu bytes\n", (long)k, (void *)This,
+                  (unsigned long)hr, (unsigned long long)size);
+    return hr;
+}
 static HRESULT STDMETHODCALLTYPE device_CreatePipelineLibrary(ID3D12Device10 *This, const void *blob, SIZE_T blob_size,
         REFIID riid, void **out) {
     struct mad_piplib *l;
@@ -21546,6 +21598,7 @@ static void build_vtables(void) {
     g_pso_vtbl.AddRef = pso_AddRef;
     g_pso_vtbl.Release = pso_Release;
     g_pso_vtbl.GetCachedBlob = pso_GetCachedBlob;   /* madeira-bcd: d3d12-pso-cached-blob (the stub when off) */
+    g_pso_vtbl.GetCachedBlob = pso_GetCachedBlob_duo;   /* BCD Duo fork (2026-11-10): the same answer, logged; or d3d12-pso-cached-blob-size */
 
     madeira_fill_ID3D12DescriptorHeap(&g_heap_vtbl);
     g_heap_vtbl.GetDevice = heap_GetDevice;

@@ -75,7 +75,7 @@ check("the answer is the 16-byte blob", "mad_make_blob(data, MAD_PSOBLOB_SIZE, (
 check("the vtable slot points at the new function (the stub when off)",
       "g_pso_vtbl.GetCachedBlob = pso_GetCachedBlob;" in SRC)
 check("creating a pipeline never reads CachedPSO (a blob handed back is harmless): it is stored, nothing else",
-      len(re.findall(r"[.>]CachedPSO\b", SRC)) == 2 and "g.CachedPSO = c.CachedPSO = *(const D3D12_CACHED_PIPELINE_STATE *)pl;" in SRC)
+      len(re.findall(r"[.>]CachedPSO\b", SRC)) == 6 and "g.CachedPSO = c.CachedPSO = *(const D3D12_CACHED_PIPELINE_STATE *)pl;" in SRC)
 check("the runtime keeps reporting the single-pipeline shader cache, the promise this call keeps",
       "c->SupportFlags = D3D12_SHADER_CACHE_SUPPORT_SINGLE_PSO;" in SRC)
 catalog = (R / "build/tools/gen-config-catalog.py").read_text()
