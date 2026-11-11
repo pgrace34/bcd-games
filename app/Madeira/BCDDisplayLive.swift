@@ -76,7 +76,7 @@ struct BCDDisplayWatchModifier: ViewModifier {
 /// switch is on (Settings > Graphics > Foldable iPhone); off, or on any other device, nothing here runs.
 enum BCDDuoLayouts {
     static let key = "bcd.duo.layouts.per-shape"
-    static var on: Bool { BCDFoldable.active && UserDefaults.standard.string(forKey: key) != "0" }
+    static var on: Bool { BCDFoldable.active && UserDefaults.standard.string(forKey: BCDDuoLayouts.key) != "0" }
     static func store(_ value: Bool) { UserDefaults.standard.set(value ? "1" : "0", forKey: key) }
     /// The root view's size, from BCDDisplayWatch.
     static var size = CGSize.zero

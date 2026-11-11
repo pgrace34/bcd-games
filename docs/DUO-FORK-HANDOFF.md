@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-10 (build 643). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-12 (build 644). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **643**). The release is tagged `v0.1.<build>`.
+  **644**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -35,7 +35,25 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - add `continue-on-error` to any new Check steps;
 - update the release-notes text in build-ipa.yml ("Based on BCD 0.1.xxx …").
 
-Last merged: BCD 0.1.634 (upstream e378a60), which adds per-game OpenGL (`gl-backend = zink | gles`).
+Last merged: BCD 0.1.653 (upstream c3c2d15, 2026-11-11) into build 644. Conflicts and how they were settled:
+- ContentView game view: the fork's `layoutBounds` (split screen) and upstream's `surfaceArea` (tabletop pose,
+  FoldTabletop) became one rule: tabletop first, else the split screen's top half, else the view. The overlay's split
+  deck and the hit test step aside while `FoldTabletop.shared.bottom` is set. Upstream's `desktopHome` /
+  BCDDuoFeatures conditions kept for the ordinary landscape overlay.
+- Settings > Foldable iPhone: upstream's "Duo enhancements" switch plus the fork's split and per-shape rows.
+- DockInstallers: the fork's InstallerMessage line plus upstream's two new provided-program tests.
+- madeira_d3d12.c SHADER_CACHE: upstream's LIBRARY bit (d3d12-pipeline-library, The Last of Us Part I) then the fork's
+  opt-in d3d12-shader-cache-none.
+- build-ipa.yml: upstream's external-drives check and Xcode 27 Metal-atomics step (the fork's older
+  patch-dxmt-tess-atomic step dropped); continue-on-error added to 64 Check steps; notes "Based on BCD 0.1.653".
+- Tests: check-bcd-foldable.py (fork's split checks restored against layoutBounds), check-external-storage.py (skips
+  the absent docs/EXTERNAL-STORAGE.md).
+- All 35 DXMT patches apply in workflow order on the new DXMT (bbbb3aa); Wine's pin is unchanged.
+- ConfigCatalog.generated.swift: keep the auto-merged file; regenerating outside the full tree drops keys.
+Earlier: BCD 0.1.634 (upstream e378a60), which added per-game OpenGL (`gl-backend = zink | gles`).
+Star Force follow-up from this merge: upstream's The Last of Us fix says that game fills its pipeline-library slots only
+when SHADER_CACHE reports LIBRARY (`d3d12-pipeline-library = 1`), else its renderer reads an empty slot. Worth one run on
+Star Force (its fault is an empty game table) before leaving it parked.
 
 ## Current work: Chrono Trigger's movies (Steam app 613830)
 
