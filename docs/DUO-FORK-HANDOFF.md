@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-12 (build 644). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-12 (build 645). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **644**). The release is tagged `v0.1.<build>`.
+  **645**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -35,7 +35,10 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - add `continue-on-error` to any new Check steps;
 - update the release-notes text in build-ipa.yml ("Based on BCD 0.1.xxx …").
 
-Last merged: BCD 0.1.653 (upstream c3c2d15, 2026-11-11) into build 644. Conflicts and how they were settled:
+Last merged: BCD 0.1.653 (upstream c3c2d15, 2026-11-11) into build 644. On every merge also set
+`BCDUpdateRules.forkBase` (app/Madeira/BCDUpdates.swift) to the merged upstream version: Settings > Updates compares
+upstream's GitHub releases with it, so it says "Update available" only when upstream is ahead of the fork's base.
+Conflicts and how they were settled:
 - ContentView game view: the fork's `layoutBounds` (split screen) and upstream's `surfaceArea` (tabletop pose,
   FoldTabletop) became one rule: tabletop first, else the split screen's top half, else the view. The overlay's split
   deck and the hit test step aside while `FoldTabletop.shared.bottom` is set. Upstream's `desktopHome` /

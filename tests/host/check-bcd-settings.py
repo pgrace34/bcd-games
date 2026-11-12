@@ -307,6 +307,8 @@ check(!U.isNewer("0.1.9", version: "0.1.10", build: "10") && U.isNewer("0.1.10",
 check(U.isNewer("v0.2", version: "0.1.570", build: "570") && !U.isNewer("v0.1", version: "0.1.570", build: "570"),
       "updates: a shorter tag compares with zeros")
 check(!U.isNewer("nightly", version: "0.1.570", build: "570"), "updates: a tag without numbers is never newer")
+check(!U.isNewer("v" + U.forkBase, version: U.forkBase, build: "0") && U.isNewer("v0.1.999", version: U.forkBase, build: "0"),
+      "updates (BCD Duo fork): upstream's release the fork is based on is not newer; a later one is")
 func answer(_ tag: String, _ page: String = "https://github.com/thebcd69/bcd-games/releases/tag/v0.1.580") -> Data {
     Data("{\"tag_name\": \"\(tag)\", \"html_url\": \"\(page)\"}".utf8)
 }

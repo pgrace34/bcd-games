@@ -36,6 +36,13 @@ enum BCDUpdateRules {
         text.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
     }
 
+    /// BCD Duo fork (2026-11-12): the upstream BCD release this fork is merged up to. The fork's own version counts from its
+    /// own build numbers (0.1.644 contains BCD 0.1.653), so upstream's releases are compared with this instead: the notice
+    /// shows only when BCD has released something newer than what the fork already contains, i.e. when a merge is due.
+    /// Bump it with every merge from upstream (docs/DUO-FORK-HANDOFF.md). The fork's own builds are announced by
+    /// BCDUpdateCheck (the fork's AltStore source).
+    static let forkBase = "0.1.653"
+
     /// Whether `tag` names a newer release than this copy: its numbers against the version's,
     /// one by one; a tag with a number more than the version compares that one with the build.
     static func isNewer(_ tag: String, version: String, build: String) -> Bool {
@@ -133,7 +140,7 @@ enum BCDUpdateRules {
             switch BCDUpdateRules.release(from: data, status: status) {
             case .success(let release):
                 latest = release
-                state = BCDUpdateRules.isNewer(release.version, version: version, build: build) ? .updateAvailable : .upToDate
+                state = BCDUpdateRules.isNewer(release.version, version: BCDUpdateRules.forkBase, build: "0") ? .updateAvailable : .upToDate   // BCD Duo fork
             case .failure(let failure):
                 state = .failed(failure.line)
             }
