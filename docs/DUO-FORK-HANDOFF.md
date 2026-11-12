@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-12 (build 645). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-12 (build 646). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **645**). The release is tagged `v0.1.<build>`.
+  **646**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -241,6 +241,21 @@ does not re-sync until the next size change.
   GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
+
+## Offline Steam starts on a train (build 646)
+
+Chrono Trigger offline (bcd-log 2026-11-12 10:10): the phone still had a network path (weak signal, plus another VPN on
+utun4), so `DockOffline.networkDown` was false, the cloud check held the start for 20 s, and Valve's client then waited
+62 s for Steam and never started the game. Build 646:
+- `DockOffline.probe` (MadeiraDock.swift): before a Dock start, a 3 s TCP connect to api.steampowered.com:443; no answer
+  counts as offline (result reused for 30 s). `env.MADEIRA_DOCK_STEAM_PROBE = 0` turns it off. Log `[dock-offline] steam-probe`.
+- `DockOffline.offline(appID)` = no path, Steam unreachable, or Play offline; `configure` sets `MADEIRA_DOCK_OFFLINE=1`
+  and logs `reason=`.
+- `cloudClear` (ContentView.swift) skips the Steam Cloud hold when offline and the account has an offline sign-in saved
+  (`[steam-cloud] ... before-play: skipped (offline)`); without one the "Couldn't check" notice still explains.
+- Game page "Play offline" (Steam games; `BCDGameAction.playOffline` → `BCDOfflinePlay.requested` → BCDLiveStore sets
+  `DockOffline.forcedApp`, used once).
+Still needs: the account must have started a Steam game online once on the device (Valve's offline sign-in).
 
 ## Mobile data and Steam Cloud (build 639)
 

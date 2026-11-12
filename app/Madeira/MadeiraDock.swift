@@ -663,6 +663,50 @@ enum DockOffline {
     /// No usable network path right now. False until the monitor has started.
     static var networkDown: Bool { started && monitor.currentPath.status != .satisfied }
 
+    // BCD Duo fork (2026-11-12): offline on a train. A phone with a weak signal (or another VPN, which keeps a path up) still
+    // reports a usable path, so the start went online, Valve's client waited 62 s for Steam and the game never started
+    // (Chrono Trigger, bcd-log 2026-11-12 10:10). Before a start, a quick TCP connect to Steam (3 s) decides: no answer is
+    // treated like no network. `forcedApp`: the game page's "Play offline" for that game's next start.
+    static var forcedApp: Int?
+    private static var probedAt: TimeInterval = -1000
+    private(set) static var steamUnreachable = false
+    /// A probe result younger than 30 s is reused (the start that follows the probe, a retry).
+    static var probeFresh: Bool { ProcessInfo.processInfo.systemUptime - probedAt < 30 }
+    /// Steam's offline sign-in is asked for this start: no path, Steam did not answer, or Play offline.
+    static func offline(_ appID: Int) -> Bool {
+        enabled && (networkDown || (probeFresh && steamUnreachable) || forcedApp == appID)
+    }
+    /// Tries Steam's web API host (3 s); `done` runs on the main queue. `env.MADEIRA_DOCK_STEAM_PROBE = 0` turns it off.
+    static func probe(_ done: @escaping () -> Void) {
+        guard enabled, !networkDown, SteamSignIn.flag("MADEIRA_DOCK_STEAM_PROBE", default: true) else {
+            steamUnreachable = false   // not probed: the path decides, and the start that follows does not ask again
+            probedAt = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.async(execute: done); return
+        }
+        let conn = NWConnection(host: "api.steampowered.com", port: 443, using: .tcp)
+        let queue = DispatchQueue(label: "madeira.dock-offline.probe")
+        let t0 = ProcessInfo.processInfo.systemUptime
+        var finished = false
+        func finish(_ reachable: Bool) {
+            guard !finished else { return }
+            finished = true
+            conn.cancel()
+            steamUnreachable = !reachable
+            probedAt = ProcessInfo.processInfo.systemUptime
+            SteamLog.event("[dock-offline] steam-probe reachable=\(reachable ? 1 : 0) ms=\(Int((probedAt - t0) * 1000))")
+            DispatchQueue.main.async(execute: done)
+        }
+        conn.stateUpdateHandler = { state in
+            switch state {
+            case .ready: finish(true)
+            case .failed, .waiting: finish(false)
+            default: break
+            }
+        }
+        conn.start(queue: queue)
+        queue.asyncAfter(deadline: .now() + 3) { finish(false) }
+    }
+
     private static let key = "madeiraDockOfflineVerified", accountKey = "madeiraDockOfflineAccount"
     /// When Valve's client last reported, in an online start, that it can log this
     /// account on offline; nil if it never has on this installation.
@@ -715,9 +759,12 @@ enum DockOffline {
     static func configure(appID: Int) {
         sessionApp = appID
         sessionMarked = false
-        let offline = enabled && networkDown
+        let forced = forcedApp == appID
+        let offline = offline(appID)
+        forcedApp = nil   // Play offline is for one start
         if offline { setenv("MADEIRA_DOCK_OFFLINE", "1", 1) } else { unsetenv("MADEIRA_DOCK_OFFLINE") }
-        SteamLog.event("[dock-offline] enabled=\(enabled ? 1 : 0) network=\(networkDown ? "down" : "up") request=\(offline ? 1 : 0) account-saved=\(accountSaved != nil ? 1 : 0) game-started-online=\(verified(appID) != nil ? 1 : 0)")
+        let why = !offline ? "" : networkDown ? " reason=no-network" : forced ? " reason=play-offline" : " reason=steam-unreachable"
+        SteamLog.event("[dock-offline] enabled=\(enabled ? 1 : 0) network=\(networkDown ? "down" : "up") request=\(offline ? 1 : 0)\(why) account-saved=\(accountSaved != nil ? 1 : 0) game-started-online=\(verified(appID) != nil ? 1 : 0)")
     }
 
     /// Follows the host's report (MadeiraDockModel.watchReport): an online start

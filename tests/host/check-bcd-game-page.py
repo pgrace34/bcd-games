@@ -127,8 +127,15 @@ check("BCDGameDetailSource finds the live backend by its Objective-C name",
       'NSClassFromString("BCDGamePageLive")' in page and "@objc(BCDGamePageLive)" in live
       and "BCDGameDetailSource.backend = BCDGamePageSample()" in (R / "app/BCDPreview/BCDPreviewApp.swift").read_text())
 check("Play, Install and Update are exactly the store's actions",
-      "case .play: store?.actions?.play(game)" in page and "case .install(let place): store?.actions?.install(game, place: place)" in page
+      "case .play, .playOffline:" in page and "store?.actions?.play(game)" in page and "case .install(let place): store?.actions?.install(game, place: place)" in page
       and "case .update: store?.actions?.update(game)" in page and page.count("actions?.play(") == 1)
+# BCD Duo fork (2026-11-12): Play offline on a Steam game's page; the live store marks the start, the Dock asks for the offline sign-in
+dock = (APP / "MadeiraDock.swift").read_text()
+check("Play offline is offered for Steam games and marks the Dock start",
+      page.count('Choice(action: .playOffline, title: "Play offline"') == 2
+      and "if BCDOfflinePlay.requested == game.id { DockOffline.forcedApp = appID }" in (APP / "BCDLiveStore.swift").read_text()
+      and "forcedApp == appID" in dock and "static func probe(" in dock
+      and 'before-play: skipped (offline)' in (APP / "ContentView.swift").read_text())
 
 # ---- the live backend: every classic setting, through the classic page's own functions ------------
 for what, needle in [

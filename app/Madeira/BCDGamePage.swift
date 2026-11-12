@@ -494,9 +494,18 @@ extension BCDGameDetailBackend {
         (NSClassFromString("BCDGamePageLive") as? NSObject.Type)?.init() as? BCDGameDetailBackend
 }
 
+/// BCD Duo fork (2026-11-12): the game page's "Play offline" for a Steam game. The next Dock start of this game asks
+/// Valve's client for the offline sign-in at once and skips the Steam Cloud check (DockOffline.configure, cloudClear),
+/// for a train with a signal that comes and goes. Used once.
+enum BCDOfflinePlay {
+    nonisolated(unsafe) static var requested: String?
+}
+
 /// Everything the page can do for a game.
 enum BCDGameAction: Hashable {
     case play
+    /// BCD Duo fork (2026-11-12): a Steam game started with Steam's offline sign-in, without waiting for the network (BCDOfflinePlay).
+    case playOffline
     case install(BCDInstallPlace)
     case update
     case pause
@@ -533,7 +542,7 @@ enum BCDGameAction: Hashable {
     /// the page closes first, so BCD's live store can show it there.
     var closesPage: Bool {
         switch self {
-        case .play, .install, .installChoosingDLC, .repair, .enableJIT, .signIn, .uninstall, .removeFromLibrary: return true
+        case .play, .playOffline, .install, .installChoosingDLC, .repair, .enableJIT, .signIn, .uninstall, .removeFromLibrary: return true
         default: return false
         }
     }
@@ -882,11 +891,13 @@ struct BCDGamePagePlan: Equatable {
         switch game.state {
         case .ready:
             main = Choice(action: .play, title: "Play", symbol: "play.fill")
+            if game.store == .steam { others.append(Choice(action: .playOffline, title: "Play offline", symbol: "wifi.slash")) }
             playable = true
         case .updateAvailable(let bytes):
             main = Choice(action: .play, title: "Play", symbol: "play.fill")
             others.append(Choice(action: .update, title: bytes > 0 ? "Update · \(BCDFormat.bytes(bytes))" : "Update",
                                  symbol: "arrow.down.circle"))
+            if game.store == .steam { others.append(Choice(action: .playOffline, title: "Play offline", symbol: "wifi.slash")) }
             playable = true
         case .broken(let reason):
             let repairable = details.offersRepair(game)
@@ -1243,7 +1254,10 @@ struct BCDGamePending: Equatable {
         if action.closesPage { close() }
         switch action {
         // Play, Install and Update are the store's actions and nothing else: BCD's live store starts them.
-        case .play: store?.actions?.play(game)
+        case .play, .playOffline:
+            // BCD Duo fork: Play offline is Play, with the mark the live store reads (BCDOfflinePlay).
+            BCDOfflinePlay.requested = action == .playOffline ? game.id : nil
+            store?.actions?.play(game)
         case .install(let place): store?.actions?.install(game, place: place)
         case .chooseDLC(let place):
             if let offer = details.dlcOffer { chooser = BCDDLCChooser(place: place, offer: offer, gameBytes: game.size ?? 0) }

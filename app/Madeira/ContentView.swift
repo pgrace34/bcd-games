@@ -1352,6 +1352,13 @@ struct ContentView: View {
     /// is only old is repeated first, without asking.
     private func cloudClear(_ appID: Int, name: String, retry: @escaping () -> Void) -> Bool {
         if library.cloudBypass == appID { library.cloudBypass = nil; return true }
+        // BCD Duo fork (2026-11-12): offline (no network, Steam not answering, or Play offline) there is no cloud to wait
+        // for: the start goes straight on with this device's saves, once Steam has an offline sign-in saved. Without one,
+        // the notice below still says why the offline start may be refused.
+        if DockOffline.offline(appID), DockOffline.accountSaved != nil {
+            LogStore.shared.log("[steam-cloud] app=\(appID) before-play: skipped (offline)")
+            return true
+        }
         guard let hold = SteamOwnedLibrary.shared.cloudHold(appID) else { return true }
         library.cloudRetry = retry
         if hold == .stale { cloudWait(appID); return false }
@@ -1369,7 +1376,7 @@ struct ContentView: View {
             // Round 630 (agent A1 S18; Resident Evil HD RHV40S): offline (no network path), on an install where BCD has no record of an online Steam start,
             // the start that follows is refused (code 50); the player read only "you're offline" first. A hint, not a refusal: that record
             // is not proof (N14Q6D signed in offline without it), so the host still decides.
-            let firstOnline = DockOffline.networkDown && DockOffline.accountSaved == nil
+            let firstOnline = DockOffline.offline(appID) && DockOffline.accountSaved == nil
                 ? " If no Steam game was started online on this device yet, Steam may also refuse to start this one offline: start it once online."
                 : ""
             return .init(appID: appID, kind: .unchecked, title: "Couldn't check Steam Cloud",
@@ -2463,6 +2470,12 @@ struct ContentView: View {
         // The library's direct start already checks the cloud before JIT. `cloudChecked`: the start JIT resumes once it
         // is on has passed the check (or "Play anyway") already, so it is not asked again.
         if !cloudChecked {
+            // BCD Duo fork (2026-11-12): is Steam answering at all (3 s)? A weak train signal keeps a network path, so without
+            // this the cloud check and Valve's client each waited out a connection that never came. DockOffline.probe.
+            if !DockOffline.probeFresh, !DockOffline.networkDown, DockOffline.forcedApp != game.id {
+                DockOffline.probe { startDock(game, compactPool: compactPool, profile: profile) }
+                return
+            }
             guard cloudClear(game.id, name: game.name, retry: { startDock(game, compactPool: compactPool, profile: profile) }) else { return }
         }
         guard jitReadyForLaunch(entry: profile?.id,

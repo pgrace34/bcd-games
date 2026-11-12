@@ -653,6 +653,9 @@ import os
             if entry.desktop == true { BCDDesktopHint.arm(games: store.games.count) }   // round 624 (agent D2 S2): the empty desktop's note
             begin(entry, launch)
         case .steam(let appID)?:
+            // BCD Duo fork (2026-11-12): the game page's "Play offline" (BCDOfflinePlay) marks this start for Steam's offline sign-in.
+            if BCDOfflinePlay.requested == game.id { DockOffline.forcedApp = appID }
+            BCDOfflinePlay.requested = nil
             // The entry the classic Steam card opens Game details with, and that page's own check
             // before Play (SteamPlayCheck.blocker: an update still downloading, then Steam's
             // rules for BCD Dock or "The game").
