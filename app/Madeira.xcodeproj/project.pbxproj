@@ -395,6 +395,7 @@
 		A1005601 /* BCDFoldable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2005601 /* BCDFoldable.swift */; };
 		A1005602 /* BCDFoldableLive.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2005602 /* BCDFoldableLive.swift */; };
 		A1005603 /* BCDFoldableSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2005603 /* BCDFoldableSettings.swift */; };
+		A1005610 /* BCDFastForward.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2005610 /* BCDFastForward.swift */; };
 		A1005604 /* BCDFoldableUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2005604 /* BCDFoldableUI.swift */; };
 		A1004103 /* BCDGraphicsRoutes.c in Sources */ = {isa = PBXBuildFile; fileRef = A2004103 /* BCDGraphicsRoutes.c */; };
 		A10013C3 /* BCDOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20013C3 /* BCDOrientation.swift */; };
@@ -879,6 +880,7 @@
 		A2005601 /* BCDFoldable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BCDFoldable.swift; sourceTree = "<group>"; };
 		A2005602 /* BCDFoldableLive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BCDFoldableLive.swift; sourceTree = "<group>"; };
 		A2005603 /* BCDFoldableSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BCDFoldableSettings.swift; sourceTree = "<group>"; };
+		A2005610 /* BCDFastForward.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BCDFastForward.swift; sourceTree = "<group>"; };
 		A2005604 /* BCDFoldableUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BCDFoldableUI.swift; sourceTree = "<group>"; };
 		A2004103 /* BCDGraphicsRoutes.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = BCDGraphicsRoutes.c; sourceTree = "<group>"; };
 		A2004104 /* BCDGraphicsRoutes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BCDGraphicsRoutes.h; sourceTree = "<group>"; };
@@ -1044,6 +1046,7 @@
 				A2005601 /* BCDFoldable.swift */,
 				A2005602 /* BCDFoldableLive.swift */,
 				A2005603 /* BCDFoldableSettings.swift */,
+				A2005610 /* BCDFastForward.swift */,
 				A2005604 /* BCDFoldableUI.swift */,
 				A2004103 /* BCDGraphicsRoutes.c */,
 				A2004104 /* BCDGraphicsRoutes.h */,
@@ -1692,6 +1695,7 @@
 				A1005601 /* BCDFoldable.swift in Sources */,
 				A1005602 /* BCDFoldableLive.swift in Sources */,
 				A1005603 /* BCDFoldableSettings.swift in Sources */,
+				A1005610 /* BCDFastForward.swift in Sources */,
 				A1005604 /* BCDFoldableUI.swift in Sources */,
 				A1004103 /* BCDGraphicsRoutes.c in Sources */,
 				A1000602 /* SteamDownloadBackground.swift in Sources */,

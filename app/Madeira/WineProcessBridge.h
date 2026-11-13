@@ -33,6 +33,11 @@ long madeira_stdout_read(void *buf, unsigned long len);
 // Check if Wine process is running
 int wine_process_is_running(void);
 
+/* BCD Duo fork (2026-11-13): fast forward (build/ntdll-unix/bcd_ff_ios.c). The game clock's speed in percent (100 = real
+ * time, 100...800); returns the clock's lead over real time in ms. bcd_ff_reads: clock reads since it first changed. */
+int64_t bcd_ff_set_percent(uint32_t percent);
+uint64_t bcd_ff_reads(void);
+
 /* How the last guest program ended. Only meaningful once
  * wine_process_is_running() returns 0. */
 int wine_process_exit_code(void);

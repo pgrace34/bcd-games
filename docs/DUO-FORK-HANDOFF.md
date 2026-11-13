@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-12 (build 646). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-13 (build 647). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **646**). The release is tagged `v0.1.<build>`.
+  **647**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -241,6 +241,22 @@ does not re-sync until the next size change.
   GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
+
+## Fast forward (build 647, experimental)
+
+Asked for Chrono Trigger (a 32-bit game: wow64). A bound controller button speeds up the game's clock.
+- build/ntdll-unix/bcd_ff_ios.c: `bcd_ff_time(real)` scales the 100 ns counter (re-based on each change, never goes
+  back), `bcd_ff_set_percent` (100...800), `bcd_ff_reads`. Identity until the percent first changes.
+- tools/patch-wine-ff-qpc.py: unix NtQueryPerformanceCounter returns `bcd_ff_time(monotonic_counter())`. That covers
+  QPC, timeGetTime and kernelbase GetTickCount/GetTickCount64 (ml1232). Waits, sleeps and the server's timers stay real.
+- 64-bit games: the arm64ec ntdll reads QPC in user mode (ml1117) and re-syncs about once a second, so the speed-up comes
+  in steps. A smooth fix would binary-patch RtlQueryPerformanceCounter's `qpc_disabled` load (0x180071abc/ac0 in the
+  shipped ntdll.dll) to read a KUSER_SHARED_DATA byte (Reserved3, 0x2b8) set by the server; not done.
+- App: BCDFastForward.swift (UserDefaults bcd.fast-forward.button/percent/toggle; sampled from GamepadInput.sample();
+  any physicalInputProfile button name, so paddles/L4/R4 if iOS reports them), rows in Settings > Controls > Controllers.
+  Log: `[fast-forward] speed=... clock-lead=... clock-reads=...`, and the controller's button names when choosing.
+- Unknown until tested: whether Chrono Trigger paces by clock or by frames (D3D9 present). If clock-reads grows but the
+  game doesn't speed up, it's frame-paced and this approach can't help without unlocking its frame rate.
 
 ## Offline Steam starts on a train (build 646)
 

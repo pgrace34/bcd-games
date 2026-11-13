@@ -2189,6 +2189,11 @@ jobs:
       - name: Patch wine so non-alertable sleeps can run I/O completions
         run: python3 tools/patch-wine-sleep-kernel-apc.py wine/dlls/ntdll/unix/sync.c
 
+      # BCD Duo fork (2026-11-13): fast forward. NtQueryPerformanceCounter reads the game's clock (build/ntdll-unix/bcd_ff_ios.c),
+      # the real counter until the app first changes its speed (BCDFastForward.swift).
+      - name: Patch wine with fast forward (the game clock's speed)
+        run: python3 tools/patch-wine-ff-qpc.py wine/dlls/ntdll/unix/sync.c
+
       # madeira-bcd: env.MADEIRA_WOA_RECHECK = 1 (default off): an infinite RtlWaitOnAddress in the 32-bit ntdll (the i386 farm's)
       # waits in one-second slices and returns when a waker removed its entry but the alert never came; the unix side keeps the
       # [waiters] registry's park across the slices, and without the switch waits a slice out as the infinite wait it stands for.

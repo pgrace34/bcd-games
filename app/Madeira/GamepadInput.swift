@@ -407,6 +407,7 @@ final class GamepadInput: @unchecked Sendable {
     }
 
     private func sample() {
+        BCDFastForward.sample(profiles)   // BCD Duo fork (2026-11-13): fast forward on a bound controller button
         // madeira-bcd (round 604): "Player N: press a button on the controller" (BCDPlayersLive.swift); one static flag, -1, while nobody is choosing.
         if BCDPlayersLive.listening >= 0, let hit = BCDPlayersLive.pressed(in: profiles) { assignListened(hit) }
         for i in profiles.indices {

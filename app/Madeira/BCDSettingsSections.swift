@@ -540,6 +540,7 @@ struct BCDControlsSettings<Backend: BCDControlsBackend>: View {
                 BCDSettingsToggleRow(id: id("controller-keys"), title: "Keys from the controller, in every game",
                                      note: "The controller presses keys and the mouse as well: A Space, B Esc, X E, Y R, the sticks WASD and the arrows, the triggers the mouse buttons. A game that reads the controller then gets each press twice, so keep it for games without controller support.",
                                      isOn: backend.controllerKeys) { backend.setControllerKeys($0) }
+                BCDFastForwardSettingsRows()   // BCD Duo fork (2026-11-13): fast forward button
             }
             if backend.restartNeeded { BCDSettingsNotice(text: bcdSettingsRestartNote) }
             BCDSettingsGroup(title: "Keyboard and mouse mode",
