@@ -45,6 +45,22 @@ enum BCDFastForward {
         applied = p
         let lead = bcd_ff_set_percent(UInt32(p))
         LogStore.shared.log("[fast-forward] speed=\(p)% (\(why)) clock-lead=\(lead)ms clock-reads=\(bcd_ff_reads())")
+        if why != "no button" { announce(p) }
+    }
+
+    /// The line over the game (the session HUD's message, as pad-auto's hint uses), for 1.5 s: the press was registered.
+    private static func announce(_ p: Int) {
+        let text = p > 100 ? "Fast forward on (\(BCDFastForwardSettingsRows.label(p)))" : "Fast forward off"
+        DispatchQueue.main.async {
+            let model = LibraryModel.shared
+            guard model.current != nil else { return }
+            let old = model.sessionMessage
+            guard old.isEmpty || old.hasPrefix("Fast forward") else { return }   // another notice keeps its place
+            model.sessionMessage = text
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                if model.sessionMessage == text { model.sessionMessage = "" }
+            }
+        }
     }
 
     /// The pressed button of any connected controller, for "press the button to use".

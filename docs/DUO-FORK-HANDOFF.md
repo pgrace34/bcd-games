@@ -261,6 +261,7 @@ Asked for Chrono Trigger (a 32-bit game: wow64). A bound controller button speed
 - 64-bit games: the arm64ec ntdll reads QPC in user mode (ml1117) and re-syncs about once a second, so the speed-up comes
   in steps. A smooth fix would binary-patch RtlQueryPerformanceCounter's `qpc_disabled` load (0x180071abc/ac0 in the
   shipped ntdll.dll) to read a KUSER_SHARED_DATA byte (Reserved3, 0x2b8) set by the server; not done.
+- Build 649: "Fast forward on (3×)" / "Fast forward off" shows over the game for 1.5 s on each change (LibraryModel.sessionMessage).
 - App: BCDFastForward.swift (UserDefaults bcd.fast-forward.button/percent/toggle; sampled from GamepadInput.sample();
   any physicalInputProfile button name, so paddles/L4/R4 if iOS reports them), rows in Settings > Controls > Controllers.
   Log: `[fast-forward] speed=... clock-lead=... clock-reads=...`, and the controller's button names when choosing.
