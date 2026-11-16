@@ -251,6 +251,9 @@ Build 650 failed at checkout: upstream 0.1.665 pins madeira-dock at 4f01fd6, whi
 (its main is still 72558e4; not in willfaust/madeira-dock either). Build 651 keeps the previous pin 72558e4. Effect: the Dock
 host lacks upstream's newest Dock changes (Steam Friends, madeira-dock #10; off by default), everything else is 0.1.665.
 When `git ls-remote https://github.com/thebcd69/bcd-dock.git` shows 4f01fd6 (or newer), re-pin to upstream's commit.
+Build 651 failed at "Verify the opt-in DLLs": the new DXC build (tools/build-dxcompiler.sh) stopped at DXC's
+"Verifying clang-format results" (generated DxilConstants.h differs from the checked-in one). Build 652 passes
+-DHLSL_DISABLE_SOURCE_GENERATION=ON and makes that verify step continue-on-error on the fork.
 
 ## Merge of upstream BCD 0.1.659 (build 648)
 

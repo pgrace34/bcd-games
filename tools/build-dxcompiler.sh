@@ -82,7 +82,8 @@ git -C "$SRC" submodule update -q --init --depth 1 external/DirectX-Headers exte
 # 2. The two tablegen tools for the Mac itself (the cross build runs them).
 COMMON=(-G Ninja -C "$SRC/cmake/caches/PredefinedParams.cmake" -DCMAKE_BUILD_TYPE=Release
         -DHLSL_INCLUDE_TESTS=OFF -DENABLE_SPIRV_CODEGEN=OFF -DSPIRV_BUILD_TESTS=OFF -DLLVM_INCLUDE_TESTS=OFF -DCLANG_INCLUDE_TESTS=OFF
-        -DLLVM_BUILD_TESTS=OFF -DLLVM_APPEND_VC_REV=OFF -DLLVM_ENABLE_ASSERTIONS=OFF -DHLSL_BUILD_DXILCONV=OFF)
+        -DLLVM_BUILD_TESTS=OFF -DLLVM_APPEND_VC_REV=OFF -DLLVM_ENABLE_ASSERTIONS=OFF -DHLSL_BUILD_DXILCONV=OFF
+        -DHLSL_DISABLE_SOURCE_GENERATION=ON)   # BCD Duo fork: use DXC's checked-in generated headers (the runner's clang-format re-formats them and the compare step fails)
 cmake -S "$SRC" -B "$WORK/host" "${COMMON[@]}" -DCMAKE_C_COMPILER=/usr/bin/clang -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
     > "$WORK/host-configure.log" 2>&1 || { tail -30 "$WORK/host-configure.log"; exit 1; }
 ninja -C "$WORK/host" -j"$JOBS" llvm-tblgen clang-tblgen > "$WORK/host-build.log" 2>&1 || { tail -30 "$WORK/host-build.log"; exit 1; }
