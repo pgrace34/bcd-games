@@ -247,6 +247,10 @@ does not re-sync until the next size change.
 Upstream 41e972b. Only BUILD-NUMBER conflicted (fork keeps its count: 650). Submodules moved (wine c605989, dxmt 55cecd9,
 FEX c2c6997): every fork Wine patch (mf-session-order, mf-video-diag, ff-qpc) and DXMT patch still applies in a local replay.
 forkBase → 0.1.665; 45 new Check steps got the fork's continue-on-error.
+Build 650 failed at checkout: upstream 0.1.665 pins madeira-dock at 4f01fd6, which thebcd69/bcd-dock has not published
+(its main is still 72558e4; not in willfaust/madeira-dock either). Build 651 keeps the previous pin 72558e4. Effect: the Dock
+host lacks upstream's newest Dock changes (Steam Friends, madeira-dock #10; off by default), everything else is 0.1.665.
+When `git ls-remote https://github.com/thebcd69/bcd-dock.git` shows 4f01fd6 (or newer), re-pin to upstream's commit.
 
 ## Merge of upstream BCD 0.1.659 (build 648)
 
