@@ -65,6 +65,7 @@ import os
 
     private init() {
         store.actions = self
+        BCDMods.folderResolver = { [weak self] game in self?.modsPlace(game) }   // BCD Duo fork (2026-11-17): game page › Mods
         finished = Self.loadFinished()
         let library = LibraryModel.shared, games = SteamGamesModel.shared, account = SteamOwnedLibrary.shared
         let changes: [AnyPublisher<Void, Never>] = [
@@ -925,4 +926,22 @@ private struct BCDLiveArt {
     var header: [URL]
     var hero: [URL]
     var logo: [URL]
+}
+
+// BCD Duo fork (2026-11-17): where a game's mods go (BCDMods.swift): its install folder on drive C, for every store.
+extension BCDLiveStore {
+    func modsPlace(_ game: BCDGame) -> (host: URL, windows: String)? {
+        var folder: String?
+        if let entry = gogPlayEntry(game) ?? epicPlayEntry(game) ?? itchPlayEntry(game) ?? eaPlayEntry(game) ?? amazonPlayEntry(game) {
+            folder = entry.gameFolder
+        } else {
+            switch BCDLiveID.parse(game.id) {
+            case .local(let id)?: folder = LibraryModel.shared.entries.first(where: { $0.id == id })?.gameFolder
+            case .steam(let appID)?: folder = SteamGamesModel.shared.games.first(where: { $0.id == appID })?.windowsInstallPath
+            default: break
+            }
+        }
+        guard let folder, let host = LibraryEntry.hostURL(ofWindowsPath: folder) else { return nil }
+        return (host, folder)
+    }
 }

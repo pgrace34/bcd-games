@@ -726,6 +726,7 @@ struct LibraryEntry: Codable, Identifiable {
         // "The game"'s identity and the launch's working folder, for this launch only
         // (the bridge reads and clears them); every other launch starts without them.
         unsetenv("MADEIRA_STEAM_APPID"); unsetenv("MADEIRA_STEAM_APPPATH"); unsetenv("MADEIRA_WORKDIR")
+        BCDMods.applyOverrides(gameFolder: gameFolder)   // BCD Duo fork (2026-11-17): switched-on mods' loader DLLs
         if steamAppID != nil {
             // A Steam game through Madeira Dock: Dock has set what starts (ContentView.startDock);
             // the virtual monitor follows this entry's Resolution, as below. "The game" starts

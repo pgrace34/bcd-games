@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-15 (build 650). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-17 (build 653). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **650**). The release is tagged `v0.1.<build>`.
+  **653**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -241,6 +241,16 @@ does not re-sync until the next size change.
   GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
+
+## Mods (build 653)
+
+Game page › Mods (every installed game, any store): BCDMods.swift. Add a .zip/.7z (ItchArchive.unpackAny), a folder or a single
+file from Files; a lone wrapping folder is stripped unless the game has a folder of that name. Stored in Application Support/
+BCDMods/<game folder key>/<id>/ (mod.json, files/, backup/). On = copy in, game's replaced files to backup/; Off = remove and
+restore; Reapply when sizes no longer match (Steam update/verify); Remove. Two switched-on mods may not share a file.
+Top-level loader DLLs (BCDMods.loaderDLLs: winmm, version, dinput8, d3d9, dxgi...) → WINEDLLOVERRIDES "<name>=n,b" at launch
+(LibraryEntry.configureLaunch → BCDMods.applyOverrides; bcd.cfg/game lines setting WINEDLLOVERRIDES still win). Folder resolver:
+BCDLiveStore.modsPlace (C: only, so not external drives). Log: [mods]. Made for Chrono Trigger Autobattle+ (Nexus mod 47).
 
 ## Merge of upstream BCD 0.1.665 (build 650)
 

@@ -553,6 +553,8 @@ enum BCDGameAction: Hashable {
     case play
     /// BCD Duo fork (2026-11-12): a Steam game started with Steam's offline sign-in, without waiting for the network (BCDOfflinePlay).
     case playOffline
+    /// BCD Duo fork (2026-11-17): the game's Mods page (BCDMods.swift).
+    case mods
     case install(BCDInstallPlace)
     case update
     case pause
@@ -941,12 +943,14 @@ struct BCDGamePagePlan: Equatable {
         case .ready:
             main = Choice(action: .play, title: "Play", symbol: "play.fill")
             if game.store == .steam { others.append(Choice(action: .playOffline, title: "Play offline", symbol: "wifi.slash")) }
+            others.append(Choice(action: .mods, title: "Mods", symbol: "puzzlepiece.extension"))   // BCD Duo fork: BCDMods.swift
             playable = true
         case .updateAvailable(let bytes):
             main = Choice(action: .play, title: "Play", symbol: "play.fill")
             others.append(Choice(action: .update, title: bytes > 0 ? "Update · \(BCDFormat.bytes(bytes))" : "Update",
                                  symbol: "arrow.down.circle"))
             if game.store == .steam { others.append(Choice(action: .playOffline, title: "Play offline", symbol: "wifi.slash")) }
+            others.append(Choice(action: .mods, title: "Mods", symbol: "puzzlepiece.extension"))   // BCD Duo fork: BCDMods.swift
             playable = true
         case .broken(let reason):
             let repairable = details.offersRepair(game)
@@ -1142,6 +1146,8 @@ struct BCDGamePending: Equatable {
     private var checkTimeout: Task<Void, Never>?
     /// The DLC chooser ("Choose DLC…" on the question) while it is open.
     @Published private(set) var chooser: BCDDLCChooser?
+    /// BCD Duo fork (2026-11-17): the game whose Mods page is open (BCDModsView).
+    @Published var mods: BCDGame?
 
     init(gameID: String, backend: BCDGameDetailBackend?) {
         self.gameID = gameID
@@ -1315,6 +1321,7 @@ struct BCDGamePending: Equatable {
             backend?.set(BCDGameDLC.chooseID, to: BCDGameDLC.chooseValue(chosen), for: game)
             store?.actions?.install(game, place: place)
         case .update: store?.actions?.update(game)
+        case .mods: mods = game
         case .pause: actions?.pauseDownload(game.id)
         case .resume: actions?.resumeDownload(game.id)
         case .cancelDownload: actions?.cancelDownload(game.id)
@@ -1668,6 +1675,7 @@ struct BCDGamePage: View {
             }
         }
         .bcdWorkshop($workshop)
+        .sheet(item: $model.mods) { BCDModsView(game: $0) }   // BCD Duo fork (2026-11-17)
         .onChange(of: model.details) { _, _ in installButtons() }
         // A game BCD finds it cannot install (a store's look at its files) loses Install while the page is open: the focus goes to Back.
         .onChange(of: model.plan.main == nil) { _, none in
