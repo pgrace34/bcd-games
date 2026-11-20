@@ -188,25 +188,13 @@ static kern_return_t counting_read( vm_map_t t, mach_vm_address_t a, mach_vm_siz
 
 # the window of the 596 log: Battle.net.exe 0x400000, ntdll 0xfff40000, libcef.dll 0x6c7b0000 (size 0x9f84000), TEB32 0x302000, PEB32 0x311000
 MAIN = r'''
-/* BCD (2026-10-29): the 4 GB-aligned window the scenarios build the 32-bit guest in. 0x5000000000 where that whole span is
- * free (the owner's Mac: the harness then runs exactly as before), else the first free 4 GB-aligned span, found with mach_vm_map's
- * alignment mask; the span is released again at once, so the pages the scenarios leave unmapped stay unmapped. On GitHub's
- * macos-26 runner 0x5000000000 is taken (KERN_NO_SPACE). The engine's gate needs only the alignment and a base of 0x100000000
- * or more; the "window" scenario prints the choice for a check that names it. */
-static uint64_t WIN;
-static void choose_window(void)
-{
-    mach_vm_address_t a = 0x5000000000ULL;
-    const vm_prot_t rw = VM_PROT_READ | VM_PROT_WRITE;
-    if (mach_vm_map(mach_task_self(), &a, 0x100000000ULL, 0, VM_FLAGS_FIXED, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
-        a = 0;
-        if (mach_vm_map(mach_task_self(), &a, 0x100000000ULL, 0xffffffffULL, VM_FLAGS_ANYWHERE, MEMORY_OBJECT_NULL, 0, FALSE, rw, rw, VM_INHERIT_DEFAULT) != KERN_SUCCESS) {
-            puts("alloc-failed window"); exit(3);
-        }
-    }
-    mach_vm_deallocate(mach_task_self(), a, 0x100000000ULL);
-    WIN = a;
-}
+/* arm64 macOS reserves 0x1000000000-0x7000000000 in every process (the M5 Max, build 672): the window moves to
+   0x15000000000 there; on the Intel host it stays at 0x5000000000. */
+#if defined(__aarch64__)
+#define WIN 0x15000000000ULL
+#else
+#define WIN 0x5000000000ULL
+#endif
 #define TEB64_G 0x300000u
 #define TEB32_G 0x302000u
 #define PEB32_G 0x311000u
@@ -219,8 +207,22 @@ static void choose_window(void)
 
 static uint64_t alloc_at(uint64_t a, size_t n)
 {
-    mach_vm_address_t m = a;
-    if (mach_vm_allocate(mach_task_self(), &m, n, VM_FLAGS_FIXED) != KERN_SUCCESS) { puts("alloc-failed"); exit(3); }
+    /* Host page by host page (M5 Max, build 672: 16 KB pages there, 4 KB on the Intel VM): the window's pieces sit at
+       4 KB offsets, so two may share a host page; a page an earlier piece already mapped is fine. */
+    const uint64_t pg = vm_page_size, lo = a & ~(pg - 1), hi = (a + n + pg - 1) & ~(pg - 1);
+    for (uint64_t p = lo; p < hi; p += pg)
+    {
+        mach_vm_address_t m = p;
+        kern_return_t k = mach_vm_allocate(mach_task_self(), &m, pg, VM_FLAGS_FIXED);
+        if (k == KERN_NO_SPACE)
+        {   /* taken as already there only when it is a read-write page (one an earlier piece of this program mapped) */
+            mach_vm_address_t q = p; mach_vm_size_t qs = 0; vm_region_basic_info_data_64_t ri;
+            mach_msg_type_number_t rc = VM_REGION_BASIC_INFO_COUNT_64; mach_port_t ro;
+            if (mach_vm_region(mach_task_self(), &q, &qs, VM_REGION_BASIC_INFO_64, (vm_region_info_t)&ri, &rc, &ro) == KERN_SUCCESS
+                && q <= p && (ri.protection & 3) == 3) continue;
+        }
+        if (k != KERN_SUCCESS) { puts("alloc-failed"); exit(3); }
+    }
     return a;
 }
 static void w32(uint64_t a, uint32_t v) { memcpy((void *)a, &v, 4); }
@@ -350,8 +352,6 @@ static void guarded(struct world *w)
 int main(int argc, char **argv)
 {
     const char *s = argc > 1 ? argv[1] : "";
-    choose_window();
-    if (!strcmp(s, "window")) { printf("win=%llx\n", (unsigned long long)WIN); return 0; }
     struct world w;
 
     if (!strcmp(s, "full")) {
@@ -378,7 +378,7 @@ int main(int argc, char **argv)
     if (!strcmp(s, "benign")) {
         w = make(1);
         w.grip = 0x140001001ULL; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);                /* a 64-bit guest */
-        w.grip = EIP_INT3 + 1; w.st.__x[19] = WIN + 0x10; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);        /* x19 is no window base */
+        w.grip = EIP_INT3 + 1; w.st.__x[19] = 0x5000000010ULL; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);   /* x19 is no window base */
         w.st.__x[19] = 0; ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);
         w.st.__x[19] = WIN; ios_int3_x86_diag(&w.st, 0, w.gregs, w.grip);                           /* no TEB */
         ios_int3_x86_diag(&w.st, w.teb64, NULL, w.grip);                                            /* no registers */
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
     }
     if (!strcmp(s, "x18-other-window")) {
         w = make(1);
-        w.st.__x[18] = WIN + 0x100000000ULL + TEB64_G;  /* x18 in another window (the next one up): the caller's TEB is used */
+        w.st.__x[18] = 0x6000000000ULL + TEB64_G;        /* x18 in another window: the caller's TEB is used */
         ios_int3_x86_diag(&w.st, w.teb64, w.gregs, w.grip);
         return 0;
     }
@@ -540,7 +540,6 @@ wine0 = Path(os.environ.get('WINE_SRC', root / 'wine'))
 if (wine0 / 'include/winternl.h').exists() and shutil.which('xcrun'):
     off_src = r'''
 #include <stddef.h>
-#include <stdarg.h>   /* BCD (2026-10-29): winternl.h needs va_list; the macOS 26 SDK's <stddef.h> no longer brings it in */
 #include "windef.h"
 #include "winternl.h"
 _Static_assert(offsetof(TEB32, Tib.StackBase) == 0x04, "stack base");
@@ -556,7 +555,9 @@ int main(void) { return 0; }
     check('the header\'s TEB32 offsets are the ones the pinned headers assert below', all(got.get(k) == v for k, v in wanted.items()), str(got))
     with tempfile.TemporaryDirectory(prefix='i3x-off-') as dd:
         (Path(dd) / 'off.c').write_text(off_src)
-        r = subprocess.run(['xcrun', '-sdk', 'macosx', 'clang', '-fsyntax-only', f'-I{wine0 / "include"}', f'-I{wine0 / "build-macos/include"}',
+        # -arch x86_64 (the M5 Max, build 672): the 32-bit structs are fixed-width, so the offsets are the same on any
+        # host; wine's headers find va_list on the x86_64 path the Intel VM had (on arm64, winternl.h line 5030 has none).
+        r = subprocess.run(['xcrun', '-sdk', 'macosx', 'clang', '-arch', 'x86_64', '-fsyntax-only', f'-I{wine0 / "include"}', f'-I{wine0 / "build-macos/include"}',
                             '-D__WINESRC__', str(Path(dd) / 'off.c')], capture_output=True, text=True)
         check('the pinned winternl.h has TEB32 at those offsets', r.returncode == 0, r.stderr[-2000:])
 else:
