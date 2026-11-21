@@ -41,7 +41,7 @@ enum BCDUpdateRules {
     /// shows only when BCD has released something newer than what the fork already contains, i.e. when a merge is due.
     /// Bump it with every merge from upstream (docs/DUO-FORK-HANDOFF.md). The fork's own builds are announced by
     /// BCDUpdateCheck (the fork's AltStore source).
-    static let forkBase = "0.1.682"
+    static let forkBase = "0.1.686"
 
     /// Whether `tag` names a newer release than this copy: its numbers against the version's,
     /// one by one; a tag with a number more than the version compares that one with the build.

@@ -380,6 +380,7 @@ struct BCDGraphicsSettings<Backend: BCDGraphicsBackend>: View {
                     BCDFoldableSettingsRow()
                     BCDDuoSplitSettingsRow()      // BCD Duo fork: the split screen
                     BCDDuoLayoutsSettingsRow()    // BCD Duo fork: touch controls per screen shape
+                    BCDTabletopTouchpadSettingsRow()
                 }
             }
             if backend.restartNeeded { BCDSettingsNotice(text: bcdSettingsRestartNote) }

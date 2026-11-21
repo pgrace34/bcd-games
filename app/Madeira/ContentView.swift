@@ -693,7 +693,27 @@ final class MetalBackedView: UIView {
         return CGPoint(x: x / n, y: y / n)
     }
     private func activeTouches(_ event: UIEvent?) -> [UITouch] {
-        (event?.allTouches ?? []).filter { $0.phase != .ended && $0.phase != .cancelled }
+        // A touchpad gesture counts only its own fingers: a control held in the controls window is not a second finger on the pad.
+        let all = padGesture ? (event?.touches(for: self) ?? []) : (event?.allTouches ?? [])
+        return all.filter { $0.phase != .ended && $0.phase != .cancelled }
+    }
+
+    /// madeira-bcd (2026-11-20, the owner): iPhone Duo's touchpad below the fold (BCDTabletopTouchpad, BCDFoldable.swift). A gesture
+    /// whose first finger lands below the fold takes the trackpad path below, whatever the pointer mode (Tap to click, the direct
+    /// launch's Windows touch) and the touch-to-mouse gate say, until its last finger lifts. Without the tabletop pose, on any other
+    /// device or with the touchpad off, `padGesture` stays false and every path is what it was.
+    private var padGesture = false
+    private static var padLogged = false
+    private func padBegins(_ touches: Set<UITouch>, _ event: UIEvent?) -> Bool {
+        guard BCDFoldable.active, let below = FoldTabletop.shared.bottom, let w = window, let t = touches.first else { return false }
+        let mine = (event?.touches(for: self) ?? []).filter { $0.phase != .ended && $0.phase != .cancelled }
+        guard mine.count == touches.count,   // the first finger(s) of a gesture
+              BCDTabletopTouchpad.owns(t.location(in: w), below: below, on: BCDTabletopTouchpad.on) else { return false }
+        if !Self.padLogged {
+            Self.padLogged = true
+            fputs("[fold] touchpad: a gesture below the fold drives the pointer like a trackpad (below=\(below))\n", stderr)
+        }
+        return true
     }
 
     // Direct touches that began while TouchMouseGate was suppressing stay
@@ -725,9 +745,11 @@ final class MetalBackedView: UIView {
         BCDTouchFeelModel.shared.gameTouched()   // madeira-bcd (round 604): a touch brings back touch controls that auto-hid (before the pad overlay's filter below drops it); nothing with auto-hide off
         guard let touches = BCDTouchExtras.filter(self, touches, .began) else { return }   // madeira-bcd (round 604): aim mode, touch gestures, the Pencil; one static flag when off
         if HardwareInput.shared.interceptTouches(touches, event, .began) { return }
-        guard let touches = tmgFilter(touches, .began) else { return }
-        if touchPointerMode { touchModeBegan(touches); return }
-        guard desktopMode || !InputSettings.shared.directTouch else {
+        if !padGesture && padBegins(touches, event) { padGesture = true }   // madeira-bcd (2026-11-20): iPhone Duo's touchpad below the fold
+        let pad = padGesture
+        guard let touches = pad ? touches : tmgFilter(touches, .began) else { return }
+        if touchPointerMode && !pad { touchModeBegan(touches); return }
+        guard pad || desktopMode || !InputSettings.shared.directTouch else {
             guard let t = touches.first else { return }
             let (x, y) = mapTouch(t)
             winios_post_touch_down(x, y)
@@ -773,9 +795,10 @@ final class MetalBackedView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touches = BCDTouchExtras.filter(self, touches, .moved) else { return }   // madeira-bcd (round 604)
         if HardwareInput.shared.interceptTouches(touches, event, .moved) { return }
-        guard let touches = tmgFilter(touches, .moved) else { return }
-        if touchPointerMode { touchModeMoved(touches, event); return }
-        guard desktopMode || !InputSettings.shared.directTouch else {
+        let pad = padGesture   // madeira-bcd (2026-11-20): iPhone Duo's touchpad below the fold
+        guard let touches = pad ? touches : tmgFilter(touches, .moved) else { return }
+        if touchPointerMode && !pad { touchModeMoved(touches, event); return }
+        guard pad || desktopMode || !InputSettings.shared.directTouch else {
             guard let t = touches.first else { return }
             let (x, y) = mapTouch(t)
             winios_post_touch_move(x, y)
@@ -852,9 +875,11 @@ final class MetalBackedView: UIView {
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touches = BCDTouchExtras.filter(self, touches, .ended) else { return }   // madeira-bcd (round 604)
         if HardwareInput.shared.interceptTouches(touches, event, .ended) { return }
-        guard let touches = tmgFilter(touches, .ended) else { return }
-        if touchPointerMode { touchModeEnded(touches, event); return }
-        guard desktopMode || !InputSettings.shared.directTouch else {
+        let pad = padGesture   // madeira-bcd (2026-11-20): iPhone Duo's touchpad below the fold, until its last finger lifts
+        defer { if pad && activeTouches(event).isEmpty { padGesture = false } }
+        guard let touches = pad ? touches : tmgFilter(touches, .ended) else { return }
+        if touchPointerMode && !pad { touchModeEnded(touches, event); return }
+        guard pad || desktopMode || !InputSettings.shared.directTouch else {
             guard let t = touches.first else { return }
             let (x, y) = mapTouch(t)
             winios_post_touch_up(x, y)
@@ -898,9 +923,11 @@ final class MetalBackedView: UIView {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touches = BCDTouchExtras.filter(self, touches, .cancelled) else { return }   // madeira-bcd (round 604)
         if HardwareInput.shared.interceptTouches(touches, event, .cancelled) { return }
-        guard let touches = tmgFilter(touches, .cancelled) else { return }
-        if touchPointerMode { touchModeCancelled(touches); return }
-        guard desktopMode || !InputSettings.shared.directTouch else {
+        let pad = padGesture   // madeira-bcd (2026-11-20): iPhone Duo's touchpad below the fold; a cancel ends the gesture
+        defer { if pad { padGesture = false } }
+        guard let touches = pad ? touches : tmgFilter(touches, .cancelled) else { return }
+        if touchPointerMode && !pad { touchModeCancelled(touches); return }
+        guard pad || desktopMode || !InputSettings.shared.directTouch else {
             guard let t = touches.first else { return }
             let (x, y) = mapTouch(t)
             winios_post_touch_up(x, y)
@@ -2580,7 +2607,7 @@ struct ContentView: View {
                 }
                 try MadeiraDock.writeHandoff(account: signIn.accountName, token: signIn.refreshToken, appID: game.id)
             } catch { fail(error); return }
-            MadeiraDock.configure(game, launchOption: launchOption)
+            MadeiraDock.configure(game, launchOption: launchOption, arguments: profile?.arguments ?? "")
             // The game's one-time installs (its Steam install script) run first, in the same
             // session. No session runs yet, so the registry files can be read and written.
             // madeira-bcd: they run in a session of their own (DockInstallers.installsOnly), and
@@ -3223,6 +3250,10 @@ struct TouchControlsOverlay: View {
             let pad = BCDDuoSplit.padRect(CGRect(origin: .zero, size: geo.size))
             ZStack(alignment: .top) {
                 if split || (landscape && !library.desktopHome && (!BCDDuoFeatures.active || session)) {
+                    // madeira-bcd (2026-11-20): iPhone Duo's touchpad below the fold, drawn under the controls (BCDTabletopTouchpad)
+                    if let foldPad = fold.bottom, !split, !m.editing, !library.blocksGameplayTouch, BCDTabletopTouchpad.on {
+                        BCDTabletopTouchpadSurface(area: foldPad, screen: geo.size)
+                    }
                     if split {
                         BCDDuoSplitDeck(pad: pad, showsControls: (m.visible || m.editing) && !library.blocksGameplayTouch) {
                             controls(pad.size, session: session)
