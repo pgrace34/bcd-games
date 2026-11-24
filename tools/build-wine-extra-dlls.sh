@@ -526,7 +526,9 @@ fi
 if [ -n "$OGL" ]; then
     og="$B/dlls/opengl32/arm64ec-windows/opengl32.dll"
     og_tmp="$SHIP/opengl32-optin.dll.tmp"
-    if git -C "$R/wine" diff --quiet -- dlls/opengl32 && grep -q "ios_wow_host_ptr" "$R/wine/dlls/opengl32/unix_private.h"; then
+    # BCD Duo fork (build 657): unix_private.h is the unix side's header (patch-wine-gl-null-sync.py edits it earlier in CI); the PE
+    # opengl32 built here does not include it, so its edit no longer stops this DLL (0.1.712's first fork build lost opengl32-optin.dll).
+    if git -C "$R/wine" diff --quiet -- dlls/opengl32 ':(exclude)dlls/opengl32/unix_private.h' && grep -q "ios_wow_host_ptr" "$R/wine/dlls/opengl32/unix_private.h"; then
         rm -f "$og" "$B"/dlls/opengl32/arm64ec-windows/*.o
         make -C "$B" -j"$JOBS" dlls/opengl32/arm64ec-windows/opengl32.dll > "$B.opengl32.log" 2>&1
         if [ -f "$og" ] && cp "$og" "$og_tmp" && "$MINGW/arm64ec-w64-mingw32-strip" --strip-debug "$og_tmp"; then

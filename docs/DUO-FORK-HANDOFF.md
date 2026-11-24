@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-24 (build 656). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-24 (build 657). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **656**). The release is tagged `v0.1.<build>`.
+  **657**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -249,6 +249,9 @@ Conflicts: BCDTouchControls.swift editDrag (upstream's group drag with snapping 
 "panel doesn't cover a dragged control" now lives in BCDTouchEditorState.dragging, set by BCDTouchLive.drag/endDrag via
 TouchControlsModel.editDragging, and BCDTouchEditor shows no panel while it's true), Library.swift session reset (both lines),
 tools/ui-preview.py (upstream's), BUILD-NUMBER (656). forkBase → 0.1.712; 20 new Check steps continue-on-error.
+Build 656 failed at "Verify the OpenGL pieces": upstream's new patch-wine-gl-null-sync.py edits dlls/opengl32/unix_private.h
+before tools/build-wine-extra-dlls.sh, whose OGL block refused a dlls/opengl32 that differs from the pin, so opengl32-optin.dll
+was not built. Build 657: that check excludes unix_private.h (only unix_thunks.c/unix_wgl.c include it, not the PE DLL).
 
 ## Merge of upstream BCD 0.1.686 (build 655)
 
