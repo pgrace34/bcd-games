@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-21 (build 655). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-24 (build 656). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **655**). The release is tagged `v0.1.<build>`.
+  **656**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -242,6 +242,14 @@ does not re-sync until the next size change.
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
 
+## Merge of upstream BCD 0.1.712 (build 656)
+
+Upstream f811dd05. madeira-dock now follows upstream again (f3e7b02, published: Friends, Valve's client of 2026-11-13).
+Conflicts: BCDTouchControls.swift editDrag (upstream's group drag with snapping replaces the fork's build-641 gesture; the fork's
+"panel doesn't cover a dragged control" now lives in BCDTouchEditorState.dragging, set by BCDTouchLive.drag/endDrag via
+TouchControlsModel.editDragging, and BCDTouchEditor shows no panel while it's true), Library.swift session reset (both lines),
+tools/ui-preview.py (upstream's), BUILD-NUMBER (656). forkBase → 0.1.712; 20 new Check steps continue-on-error.
+
 ## Merge of upstream BCD 0.1.686 (build 655)
 
 Upstream a8a49fb5 (touchpad below the fold for the tabletop pose, Steam launch arguments via the Dock, KosmicKrisp retry, Epic
@@ -275,7 +283,7 @@ Upstream 41e972b. Only BUILD-NUMBER conflicted (fork keeps its count: 650). Subm
 FEX c2c6997): every fork Wine patch (mf-session-order, mf-video-diag, ff-qpc) and DXMT patch still applies in a local replay.
 forkBase → 0.1.665; 45 new Check steps got the fork's continue-on-error.
 Build 650 failed at checkout: upstream 0.1.665 pins madeira-dock at 4f01fd6, which thebcd69/bcd-dock has not published
-(its main is still 72558e4; not in willfaust/madeira-dock either). Build 651 keeps the previous pin 72558e4. Effect: the Dock
+(its main is still 72558e4; not in willfaust/madeira-dock either). Build 651 kept the previous pin 72558e4 (until build 656, which follows upstream again). Effect: the Dock
 host lacks upstream's newest Dock changes (Steam Friends, madeira-dock #10; off by default), everything else is 0.1.665.
 When `git ls-remote https://github.com/thebcd69/bcd-dock.git` shows 4f01fd6 (or newer), re-pin to upstream's commit.
 Build 651 failed at "Verify the opt-in DLLs": the new DXC build (tools/build-dxcompiler.sh) stopped at DXC's
