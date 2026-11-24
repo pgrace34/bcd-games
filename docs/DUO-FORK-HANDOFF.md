@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-24 (build 657). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-24 (build 658). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **657**). The release is tagged `v0.1.<build>`.
+  **658**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -241,6 +241,17 @@ does not re-sync until the next size change.
   GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
+
+## Picked from other forks (build 658)
+
+Fork survey 2026-11-24 (12 forks of thebcd69/bcd-games, Porthole, Madeira, Playport). Cherry-picked (with -x):
+- RageMC fix/ios272-beta-date-backdeploy: SteamSignIn compares expiry by interval (iOS 27.2 SDK Date.<= back-deploy thunk to a
+  missing symbol on 27.2 betas, black screen at start).
+- sky9662 pr/touch-mouse-acceleration: optional acceleration for the touch trackpad and mouse-look (BCDTouchAcceleration.swift,
+  pbxproj A1007B90/A2007B90), off by default.
+Not taken (see chat 2026-11-24): Strike-Kaboom M5 FEX/D3D12 patches (one device, own workflow), zahir-sky hosts file, le0-VV live
+logs over Wi-Fi, sky9662 Turing Complete preset and Cloud profile migration, Porthole 1.4 (Discord, external display; wait for
+upstream ports).
 
 ## Merge of upstream BCD 0.1.712 (build 656)
 
