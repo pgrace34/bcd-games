@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-24 (build 658). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-25 (build 659). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **658**). The release is tagged `v0.1.<build>`.
+  **659**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -241,6 +241,15 @@ does not re-sync until the next size change.
   GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
+
+## Steam missing in builds 657-658 (fixed in 659)
+
+The 656 merge set madeira-dock to f3e7b02 with update-index, but the later `git add -A` re-staged the submodule's checked-out commit
+(72558e4), so 656-658 kept the old Dock while carrying upstream's patches for the new one. check-dock-licence-ask.py (run inside
+"Build Madeira Dock host", continue-on-error) failed on the missing slot_subscribed fields, dockhost.exe was not built, and
+MadeiraDock.enabled (dockhost.exe in the bundle) was false: no Steam section, no [steam-library] line in the log. Build 659 pins
+f3e7b02 with the submodule checked out at it. LESSON: after changing a submodule pin, `git -C <sub> checkout <sha>` before any
+`git add -A`, and confirm with `git ls-tree HEAD <sub>` after committing.
 
 ## Picked from other forks (build 658)
 
