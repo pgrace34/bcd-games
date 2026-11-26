@@ -247,6 +247,11 @@ does not re-sync until the next size change.
 Upstream 8c784fe0. Conflicts: SteamSignIn.swift (upstream took RageMC's iOS 27.2 interval fix itself; upstream's text kept),
 BUILD-NUMBER (660). No submodule moves (madeira-dock f3e7b02 checked out before staging). forkBase → 0.1.721; 7 new Check steps
 continue-on-error. Dock/Wine/DXMT patch replays fine.
+The first push of 660 never ran: GitHub refused build-ipa.yml as a "workflow file issue" at 516,558 bytes (the limit is about
+512 KB; 659's 510,564 passed). The fork's 651 `continue-on-error: ${{ github.repository == 'pgrace34/bcd-games' }}` lines are now
+`continue-on-error: ${{ env.FK == 'true' }}` with FK in the build job's env (500,645 bytes). WATCH THE SIZE on every merge
+(`wc -c .github/workflows/build-ipa.yml` must stay under 512,000); if upstream grows past it, strip comment-only lines from the
+fork's copy of the workflow or move fork-only steps into a separate workflow.
 
 ## Steam missing in builds 657-658 (fixed in 659)
 
