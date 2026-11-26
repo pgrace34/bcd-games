@@ -52,6 +52,7 @@ struct MadeiraApp: App {
                 // the Resolution choices, the touch overlay and the game surface follow it (BCDDisplayLive.swift).
                 .modifier(BCDDisplayWatchModifier())
                 .onAppear {
+                    BCDLiveLogAccess.shared.restore()
                     // External drives (ExternalDrives.swift, from Madeira #464): each saved drive is opened again and linked
                     // as C:\External\<name> and its letter before Wine starts.
                     ExternalDrives.shared.mountAll()

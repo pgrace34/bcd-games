@@ -1,6 +1,6 @@
 # BCD Duo fork: handoff notes
 
-Last updated 2026-11-25 (build 659). This file is for whoever picks up the fork next, whether that's a person or a new
+Last updated 2026-11-26 (build 660). This file is for whoever picks up the fork next, whether that's a person or a new
 Claude session: what the fork is, how it builds and ships, and what's in progress right now.
 
 ## What this is
@@ -17,7 +17,7 @@ Claude session: what the fork is, how it builds and ships, and what's in progres
 - **Pushing to `iphone-duo` starts a full IPA build** (`.github/workflows/build-ipa.yml`, about an hour). Put
   `[skip ci]` in the commit message for doc-only changes.
 - The build number comes from the last line of `docs/local-build/BUILD-NUMBER`. Bump it for each build (currently
-  **659**). The release is tagged `v0.1.<build>`.
+  **660**). The release is tagged `v0.1.<build>`.
 - When the build succeeds it dispatches `.github/workflows/altsource.yml`, which refreshes the SideStore source
   (`tools/update-altsource.py`, published via GitHub Pages). The user installs and updates through SideStore.
 - Host "Check" steps in build-ipa.yml have
@@ -241,6 +241,12 @@ does not re-sync until the next size change.
   GraphicsCommandList QueryInterface, CheckFeatureSupport 48, 49, 53) are the usual optional probes. The stack walk still
   found only one return address. What fills the table, and why not here, would need the game's decrypted code (Enigma);
   the round ended in the "middle case" agreed with the user, and Star Force is parked here.
+
+## Merge of upstream BCD 0.1.721 (build 660)
+
+Upstream 8c784fe0. Conflicts: SteamSignIn.swift (upstream took RageMC's iOS 27.2 interval fix itself; upstream's text kept),
+BUILD-NUMBER (660). No submodule moves (madeira-dock f3e7b02 checked out before staging). forkBase → 0.1.721; 7 new Check steps
+continue-on-error. Dock/Wine/DXMT patch replays fine.
 
 ## Steam missing in builds 657-658 (fixed in 659)
 
